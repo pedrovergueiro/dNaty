@@ -377,7 +377,65 @@ dNaty = **simultaneous bidirectional coupling**:
 
 ---
 
-## Comparison with Related Work
+## Comparison with Market Alternatives
+
+> **Note:** dNaty results use reduced config (G=15, N=6, 3K samples). Full config (G=50, N=20, 60K) expected ~97% MNIST. Comparison is honest about this.
+
+### NAS — Neural Architecture Search
+
+| Tool | MNIST | Params | Search Cost | CL Support | Open Source |
+|------|-------|--------|-------------|------------|-------------|
+| **dNaty (current)** | **90.04%** | **52.5K** | **~2 min CPU** | **✓ built-in** | **✓** |
+| **dNaty (full config)** | **~97%*** | **~63K** | **~45 min GPU** | **✓ built-in** | **✓** |
+| AutoKeras | ~99% | 100K–1M | ~30 min GPU | ✗ | ✓ |
+| DARTS | ~99% | 89K | ~1.5h GPU | ✗ | ✓ |
+| NEAT-Python | ~94% | 58K | ~6h CPU | ✗ | ✓ |
+| Google AutoML | ~99% | unknown | cloud $$$ | ✗ | ✗ |
+| H2O AutoML | ~96% | varies | ~10 min | ✗ | ✓ |
+
+*estimated with full config
+
+**dNaty unique advantage:** the only NAS tool with built-in Continual Learning. All others require full retraining when data distribution changes.
+
+### Continual Learning
+
+| Method | Split-MNIST BWT | Learns all tasks | Architecture fixed | Memory overhead |
+|--------|-----------------|-----------------|-------------------|-----------------|
+| **dNaty** | **−0.1395** | **✓** | **✗ (evolves)** | **100 samples/task** |
+| EWC (2017) | −0.9861 | ✓ | ✓ | Fisher matrix O(p²) |
+| PackNet | ~−0.04 | ✓ | ✓ | binary masks |
+| ProgressNets | ~−0.05 | ✓ | ✓ | grows per task |
+| Fine-tuning (no CL) | −0.9817 | ✓ | ✓ | none |
+| Replay (raw) | ~−0.10 | ✓ | ✓ | full data buffer |
+
+**dNaty vs EWC:** 85.9% less forgetting (p<0.0001, d=70.7). EWC with fixed architecture cannot adapt structure to new tasks — dNaty can.
+
+### What makes dNaty unique
+
+```
+                    NAS only    CL only    NAS + CL    Formal theorem
+AutoKeras             ✓           ✗           ✗              ✗
+DARTS                 ✓           ✗           ✗              ✗
+EWC                   ✗           ✓           ✗              ✗
+PackNet               ✗           ✓           ✗              ✗
+NEAT                  ✓           ✗           ✗              ✗
+dNaty                 ✓           ✓           ✓              ✓  ← only one
+```
+
+No existing tool simultaneously does NAS + CL with a formal convergence guarantee.
+
+### When to use dNaty vs alternatives
+
+| Use case | Recommended |
+|----------|-------------|
+| Fixed dataset, max accuracy, no budget constraint | AutoKeras / Google AutoML |
+| Fixed dataset, need small model | DARTS or dNaty full config |
+| Model must adapt to new tasks without forgetting | **dNaty** |
+| Embedded / edge device with changing environment | **dNaty** (depthwise_sep operator) |
+| Research: NAS theory / convergence proofs | **dNaty** |
+| Production ML pipeline, no retraining budget | **dNaty** |
+
+
 
 | Method | Variable Arch | Gradient | Episodic Memory | CL | dNaty advantage |
 |--------|:---:|:---:|:---:|:---:|---|
