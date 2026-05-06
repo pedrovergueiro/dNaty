@@ -408,12 +408,15 @@ Run full experiments on T4 GPU (~25 min):
 ```
 v4.0  ✓  EpisodicMemory + NSGA-II + 8 dense operators + SAM+Adam
 v4.1  ✓  Real CNN operators (add_conv_block, depthwise_sep)
-v4.1  ✓  MNIST 90.04% | FashionMNIST 84.06% | BWT=-0.0002 (5 seeds)
+v4.1  ✓  MNIST 90.04% | FashionMNIST 84.06% | BWT=-0.0002 (5 seeds, reduced config)
 v4.1  ✓  Theorem 1 validated: 225/225 measurements
+v4.1  ✓  Split-MNIST CL bug fixed (v2: lr=1e-3 + L2 regularization)
 
-v4.2  ○  Fix Split-MNIST sequential loop (tasks T1–T4)
-v4.2  ○  Full config experiments (G=50, N=20, 60K samples)
+v4.2  ○  Full config experiments (G=50, N=20, 60K) — expected MNIST ~97%
+v4.2  ○  Split-MNIST v2 results (corrected CL loop)
+v4.2  ○  CIFAR-10 full config (G=50, N=20, 50K) — expected ~75%
 v4.3  ○  Ablation study (8 variants × 3 datasets × 5 seeds)
+v4.3  ○  Tabular data + time series benchmarks
 v5.0  ○  arXiv submission (cs.NE + cs.LG)
 v5.0  ○  GECCO 2026 submission (~Jan 2026)
 ```

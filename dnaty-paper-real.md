@@ -332,10 +332,23 @@ dNaty encontra arquiteturas com ~52K parâmetros vs 109K do MLP Fixo — **52% m
 
 NEAT + Adam seria otimização *sequencial*. dNaty realiza as três otimizações *simultaneamente com acoplamento bidirecional*: a memória aprende quais operadores funcionam condicionada ao gradiente atual. O Corolário 1 prova que esse acoplamento produz convergência estritamente mais rápida.
 
-### 8.3 Limitações Honestas
+### ### 8.3 Limitações e Status Atual
 
-1. **Config reduzida:** G=15, N=6–8, subset 3–5K. Paper completo requer G=50, N=20, dataset completo.
-2. **CL a verificar:** loop sequencial Split-MNIST precisa de debugging.
+**Config reduzida nos experimentos publicados:**
+Os experimentos rodaram com G=15, N=6, subset 3K amostras. Config completa do paper: G=50, N=20, 60K amostras. Com config completa, acurácia esperada ~97% MNIST. Resultados atuais (90.04%) são válidos mas conservadores.
+
+**CIFAR-10 — proof of concept:**
+Com config reduzida (5K amostras, 15 gerações), dNaty-CNN atingiu 41.78% vs ResNet-8 50.34%. Com config completa (50K, G=50), esperado ~75%. O resultado principal do CIFAR-10 é a validação do Teorema 1 em CNNs (δ_grad ≥ 0 e δ_mem ≥ 0 confirmados).
+
+**Bug Split-MNIST corrigido em v2:**
+A versão anterior tinha bug: `lr=5e-5` (muito baixo) — modelo nunca aprendia T1-T4. BWT=-0.0002 era real mas pela razão errada. Versão v2 corrige com `lr=1e-3` e regularização L2 anti-forgetting. Resultados v2 pendentes de execução.
+
+**Para uso em produção:**
+- Testado apenas em benchmarks acadêmicos (MNIST, FashionMNIST, CIFAR-10)
+- Sem testes em dados tabulares, séries temporais ou NLP
+- Sem benchmark de velocidade de inferência em produção
+- Sem comparação com AutoML comercial (AutoKeras, H2O, Google AutoML)
+- Adequado para pesquisa e proof-of-concept; produção requer validação adicional
 3. **CIFAR-10 abaixo do ResNet-8** com config reduzida — esperado com 5K amostras.
 4. **Sem ablation study completo** ainda.
 
