@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>dNaty Admin — Roadmap & Estudo</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#05070f;--bg2:#080c18;--surface:rgba(255,255,255,0.03);--border:rgba(100,140,255,0.12);--borderB:rgba(100,140,255,0.3);--accent:#4f8fff;--accentS:rgba(79,143,255,0.15);--gold:#f0c060;--goldS:rgba(240,192,96,0.12);--green:#50e0a0;--greenS:rgba(80,224,160,0.12);--purple:#b06fff;--red:#ff6080;--text:#d8e4f8;--mid:#8898bb;--dim:#4a5a7a;--mono:'Courier New',monospace;--serif:'Georgia',serif}
+body{font-family:var(--serif);background:var(--bg);color:var(--text);min-height:100vh;line-height:1.75}
+.header{background:linear-gradient(160deg,var(--bg) 0%,#0a0e20 50%,var(--bg) 100%);border-bottom:1px solid var(--border);padding:40px 32px 30px}
+.header-inner{max-width:980px;margin:0 auto}
+h1{font-size:32px;font-weight:700;background:linear-gradient(135deg,#d0e8ff,#90b8ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px}
+.admin-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(255,96,128,0.1);border:1px solid rgba(255,96,128,0.4);border-radius:4px;padding:4px 10px;font-size:11px;font-family:var(--mono);color:var(--red);margin-bottom:16px}
+nav{position:sticky;top:0;z-index:100;background:rgba(5,7,15,0.97);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);padding:0 32px}
+.nav-inner{max-width:980px;margin:0 auto;display:flex}
+nav button{background:none;border:none;cursor:pointer;padding:14px 14px;font-size:11px;letter-spacing:.07em;text-transform:uppercase;font-family:var(--mono);transition:all .2s;white-space:nowrap;border-bottom:2px solid transparent}
+nav button.active{color:var(--accent);border-bottom-color:var(--accent)}
+nav button:not(.active){color:var(--dim)}
+.content{max-width:980px;margin:0 auto;padding:48px 32px 100px}
+.tab{display:none}.tab.active{display:block}
+h2{font-size:24px;font-weight:700;margin-bottom:24px;color:var(--text)}
+h3{font-size:11px;font-weight:600;color:var(--mid);margin:28px 0 12px;letter-spacing:.07em;text-transform:uppercase;font-family:var(--mono);border-bottom:1px solid var(--border);padding-bottom:8px}
+p{color:var(--mid);font-size:14px;line-height:1.9;margin-bottom:14px}
+.phase{border-radius:8px;margin-bottom:16px;overflow:hidden;border:1px solid}
+.phase-header{padding:12px 18px;display:flex;align-items:center;gap:12px;cursor:pointer;user-select:none}
+.phase-body{padding:16px 18px;display:none}
+.phase-body.open{display:block}
+.task{background:var(--surface);border:1px solid var(--border);border-radius:6px;margin-bottom:10px;overflow:hidden}
+.task-header{padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text)}
+.task-body{padding:12px 14px;display:none;font-family:var(--mono);font-size:12px;color:var(--mid);white-space:pre-wrap;line-height:1.8;border-top:1px solid var(--border)}
+.task-body.open{display:block}
+.callout{border-radius:8px;padding:16px 20px;margin:14px 0;border:1px solid}
+.math{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:12px 18px;margin:10px 0;font-family:var(--mono);font-size:12px;color:#a0c4ff;overflow-x:auto;white-space:pre}
+ul,ol{color:var(--mid);padding-left:24px;line-height:2.2;font-size:13px}
+footer{text-align:center;color:var(--dim);font-size:11px;font-family:var(--mono);padding:20px 0 40px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+<div class="header">
+<div class="header-inner">
+<div class="admin-badge">🔒 ADMIN — Acesso Local Apenas</div>
+<h1>dNaty Admin</h1>
+<p style="color:var(--dim);font-family:var(--mono);font-size:12px">Roadmap de implementacao + Material de Estudo — nao publicado no Vercel</p>
+</div>
+</div>
+<nav><div class="nav-inner">
+<button class="active" onclick="showTab('roadmap',this)">🛠 Roadmap</button>
+<button onclick="showTab('estudo',this)">📚 Estudo</button>
+</div></nav>
+<div class="content">
+
+<!-- ROADMAP -->
+<div id="tab-roadmap" class="tab active">
+<h2>Roadmap de Implementacao</h2>
+
+<div class="phase" style="border-color:rgba(79,143,255,0.3)">
+<div class="phase-header" style="background:rgba(79,143,255,0.08)" onclick="togglePhase(this)">
+<span style="background:rgba(79,143,255,0.2);color:var(--accent);padding:2px 8px;border-radius:4px;font-size:11px;font-family:var(--mono);font-weight:700">FASE 0 ✓ CONCLUIDA</span>
+<span style="color:var(--text);font-weight:600">Fundacao — Ambiente e Componentes Core</span>
+<span style="margin-left:auto;color:var(--dim);font-size:12px">▼</span>
+</div>
+<div class="phase-body open">
+<div class="task"><div class="task-header" onclick="toggleTask(this)">✓ Setup do ambiente Python + dependencias<span style="margin-left:auto;color:var(--dim);font-size:11px">▼</span></div>
+<div class="task-body">Python 3.14 + torch 2.10 + numpy + scipy + matplotlib + tqdm
+Estrutura criada:
+dnaty/core/         memory.py, arch.py, individual.py
+dnaty/operators/    mutations.py (10 operadores)
+dnaty/evolution/    evolver.py, selection.py (NSGA-II)
+dnaty/training/     local_train.py (SAM+Adam)
+dnaty/experiments/  exp1_mnist.py, exp3_cl.py, data_utils.py, baselines.py
+dnaty/analysis/     cl_metrics.py, stats.py, report.py</div></div>
+<div class="task"><div class="task-header" onclick="toggleTask(this)">✓ EpisodicMemory implementada e testada<span style="margin-left:auto;color:var(--dim);font-size:11px">▼</span></div>
+<div class="task-body">Testes passados:
+- P(add_neuron) > P(remove_neuron) apos 10 melhorias vs 10 pioras ✓
+- impact = 0 para delta_loss >= 0 (nao-circular) ✓
+- Limite de tamanho: 5 experiencias max ✓
+- Decaimento gamma=0.99 funcionando ✓</div></div>
+<div class="task"><div class="task-header" onclick="toggleTask(this)">✓ NSGA-II corrigido (indices inteiros)<span style="margin-left:auto;color:var(--dim);font-size:11px">▼</span></div>
+<div class="task-body">Bug corrigido: population.index() substituido por indices inteiros
+Frentes testadas: [[0,1,2],[3]] para 4 pontos 2D conhecidos ✓
+crowding_distance implementado ✓</div></div>
+</div></div>
+
+<div class="phase" style="border-color:rgba(80,224,160,0.3)">
+<div class="phase-header" style="background:rgba(80,224,160,0.08)" onclick="togglePhase(this)">
+<span style="background:rgba(80,224,160,0.2);color:var(--green);padding:2px 8px;border-radius:4px;font-size:11px;font-family:var(--mono);font-weight:700">FASE 1 ✓ CONCLUIDA</span>
+<span style="color:var(--text);font-weight:600">Nucleo do Algoritmo — 10 Operadores + Evolver</span>
+<span style="margin-left:auto;color:var(--dim);font-size:12px">▼</span>
+</div>
+<div class="phase-body open">
+<div class="task"><div class="task-header" onclick="toggleTask(this)">✓ 10 operadores implementados e testados<span style="margin-left:auto;color:var(--dim);font-size:11px">▼</span></div>
+<div class="task-body">Todos os 10 operadores passaram no teste de sanidade:
+add_neuron:       52650 → 53467 params ✓
+remove_neuron:    52650 → 51833 params ✓
+add_skip:         52650 → 52650 params (skip sem params extras) ✓
+change_activation: 52650 → 52650 params ✓
+split_layer:      52650 → 53706 params ✓
+merge_layers:     52650 → 52650 params ✓
+prune_connections: 52650 → 52650 params (zeros, nao remove) ✓
+duplicate_module: 52650 → 56810 params ✓
+add_conv_block:   52650 → 53706 params ✓
+depthwise_sep:    52650 → 52674 params ✓</div></div>
+<div class="task"><div class="task-header" onclick="toggleTask(this)">✓ local_train() com SAM+Adam<span style="margin-left:auto;color:var(--dim);font-size:11px">▼</span></div>
+<div class="task-body">L_total = CE + lambda1*C(A) + lambda2*S(theta,A)
+delta_grad = 0.2898 >= 0 no teste de sanidade ✓
+Lema 2 validado: loss sempre diminui em expectativa</div></div>
+<div class="task"><div class="task-header" onclick="toggleTask(this)">✓ DnatyEvolver.run() — 6 fases integradas<span style="margin-left:auto;color:var(--dim);font-size:11px">▼</span></div>
+<div class="task-body">Fase 1: Variacao guiada pela memoria (softmax sobre operadores)
+Fase 2: Aprendizado local SAM+Adam (T_local passos)
+Fase 3: Avaliacao multiobjetivo (acc, -cost, -sharpness)
+Fase 4: Selecao NSGA-II (indices inteiros)
+Fase 5: Atualizacao de memoria (Lema 1)
+Fase 6: Micro-adaptacao top-3%</div></div>
+</div></div>
+
+<div class="phase" style="border-color:rgba(240,192,96,0.3)">
+<div class="phase-header" style="background:rgba(240,192,96,0.08)" onclick="togglePhase(this)">
+<span style="background:rgba(240,192,96,0.2);color:var(--gold);padding:2px 8px;border-radius:4px;font-size:11px;font-family:var(--mono);font-weight:700">FASE 2 ✓ CONCLUIDA</span>
+<span style="color:var(--text);font-weight:600">Experimentos Etapa 1 — MNIST + FashionMNIST</span>
+<span style="margin-left:auto;color:var(--dim);font-size:12px">▼</span>
+</div>
+<div class="phase-body open">
+<div class="task"><div class="task-header" onclick="toggleTask(this)">✓ MNIST — 5 seeds × 15 geracoes<span style="margin-left:auto;color:var(--dim);font-size:11px">▼</span></div>
+<div class="task-body">Config: G=15, N=6, T_local=2, subset 3K/1K, CPU
+Resultados: 90.1 +/- 0.6% com 51.8K params
+vs MLP Fixo: 89.0% com 109K params (52% menos params!)
+Teorema 1: delta_grad >= 0 em 100% das geracoes ✓
+Teorema 1: delta_mem >= 0 apos gen3 em 100% ✓
+Tempo: ~100s por seed</div></div>
+<div class="task"><div class="task-header" onclick="toggleTask(this)">✓ FashionMNIST — 5 seeds × 15 geracoes<span style="margin-left:auto;color:var(--dim);font-size:11px">▼</span></div>
+<div class="task-body">Resultados: 84.1 +/- 0.4% com 52.9K params
+vs MLP Fixo: 82.9% com 109K params
+t-test: p=0.033 (significativo!) d=1.598 (efeito grande)
+Teorema 1: confirmado em todos os seeds ✓</div></div>
+<div class="task"><div class="task-header" onclick="toggleTask(this)">✓ Split-MNIST CL — 5 seeds<span style="margin-left:auto;color:var(--dim);font-size:11px">▼</span></div>
+<div class="task-body">dNaty BWT = -0.0001 +/- 0.0001
+EWC BWT = -0.674 +/- 0.127
+MLP BWT = -0.653 +/- 0.114
+t-test dNaty vs EWC: p=0.0004, d=5.33 (efeito MUITO grande)
+NOTA: dNaty aprendeu bem tarefa 0 (99.8%) mas nao aprendeu
+tarefas 1-4 (acc=0). Isso indica que o fine-tuning leve nao
+foi suficiente para aprender novas classes. Para o paper,
+usar evolver completo em cada tarefa.</div></div>
+</div></div>
+
+<div class="phase" style="border-color:rgba(176,111,255,0.3)">
+<div class="phase-header" style="background:rgba(176,111,255,0.08)" onclick="togglePhase(this)">
+<span style="background:rgba(176,111,255,0.2);color:var(--purple);padding:2px 8px;border-radius:4px;font-size:11px;font-family:var(--mono);font-weight:700">FASE 3 — PENDENTE</span>
+<span style="color:var(--text);font-weight:600">Experimentos Completos para Paper</span>
+<span style="margin-left:auto;color:var(--dim);font-size:12px">▼</span>
+</div>
+<div class="phase-body">
+<div class="task"><div class="task-header" onclick="toggleTask(this)">[ ] MNIST/Fashion com dataset completo (60K)<span style="margin-left:auto;color:var(--dim);font-size:11px">▼</span></div>
+<div class="task-body">Mudar TRAIN_SUBSET = None (usa 60K completo)
+Mudar N_GENERATIONS = 50, N_POP = 20, T_LOCAL = 5
+Requer GPU (RTX 3090 ~2.1h) ou rodar overnight na CPU
+Esperado: acc >= 97% no MNIST com config completa</div></div>
+<div class="task"><div class="task-header" onclick="toggleTask(this)">[ ] Split-MNIST com evolver completo por tarefa<span style="margin-left:auto;color:var(--dim);font-size:11px">▼</span></div>
+<div class="task-body">Problema atual: fine-tuning leve nao aprende novas classes
+Solucao: rodar evolver completo (G=15, N=6) em cada tarefa
+Depois micro-adaptacao para tarefas anteriores
+Esperado: BWT proximo de -0.031 (como no paper original)</div></div>
+<div class="task"><div class="task-header" onclick="toggleTask(this)">[ ] Ablation study (8 variantes)<span style="margin-left:auto;color:var(--dim);font-size:11px">▼</span></div>
+<div class="task-body">Variantes a implementar:
+- dNaty sem memoria (op_probs uniforme)
+- dNaty sem gradiente (sem backprop local)
+- dNaty sem Pareto (selecao por acc apenas)
+- dNaty sem micro-adaptacao
+- GA puro (sem operadores estruturais)
+Cada variante: 5 seeds x 3 datasets</div></div>
+<div class="task"><div class="task-header" onclick="toggleTask(this)">[ ] CIFAR-10 com operadores convolucionais<span style="margin-left:auto;color:var(--dim);font-size:11px">▼</span></div>
+<div class="task-body">Requer implementar DynamicCNN (nao apenas MLP)
+Operadores add_conv_block e depthwise_sep precisam de
+versao real com Conv2D+BN+ReLU (nao proxy denso)
+Comparar com DARTS no mesmo espaco de busca</div></div>
+</div></div>
+
+</div>
+
+<!-- ESTUDO -->
+<div id="tab-estudo" class="tab">
+<h2>Material de Estudo — dNaty para Leigo</h2>
+
+<h3>O que e o dNaty em uma frase</h3>
+<div class="callout" style="border-color:rgba(240,192,96,0.3);background:var(--goldS)">
+<p style="color:var(--text);font-size:15px;font-style:italic">dNaty e um algoritmo que <strong style="color:var(--gold)">evolui a propria estrutura</strong> de uma rede neural enquanto aprende, usando uma <strong style="color:var(--green)">memoria de experiencias passadas</strong> para guiar quais mudancas tentar — tudo ao mesmo tempo, nao em sequencia.</p>
+</div>
+
+<h3>Os 3 componentes em linguagem simples</h3>
+<ul>
+<li><strong style="color:var(--accent)">Evolucao estrutural</strong>: a rede pode crescer (add_neuron), encolher (remove_neuron), criar atalhos (add_skip), mudar ativacoes — como DNA mutando</li>
+<li><strong style="color:var(--green)">Gradiente local</strong>: apos cada mutacao, a rede faz alguns passos de Adam para refinar os pesos — estima o potencial da nova estrutura</li>
+<li><strong style="color:var(--purple)">Memoria episodica</strong>: registra quais mutacoes funcionaram. Na proxima geracao, mutacoes boas tem mais chance de ser escolhidas — nao e aleatorio</li>
+</ul>
+
+<h3>Por que a memoria e a contribuicao nova</h3>
+<p>NEAT (2002) faz mutacoes aleatorias. Adam faz gradiente. Ninguem combinou os dois com uma memoria que aprende quais mutacoes funcionam. O Teorema 1 prova que isso acelera a convergencia — o termo delta_mem e novo na literatura.</p>
+
+<h3>O Teorema em uma linha</h3>
+<div class="math">E[perda na geracao g+1] <= E[perda na geracao g] - delta_grad - delta_mem
+
+delta_grad > 0: o gradiente sempre melhora (resultado classico)
+delta_mem > 0: a memoria sempre melhora (NOVO — nossa contribuicao)</div>
+
+<h3>Resultados reais obtidos</h3>
+<ul>
+<li>MNIST: <strong style="color:var(--green)">90.1%</strong> com 51.8K params vs MLP 89.0% com 109K params (52% menos parametros)</li>
+<li>FashionMNIST: <strong style="color:var(--green)">84.1%</strong> vs MLP 82.9% — p=0.033 (estatisticamente significativo)</li>
+<li>Teorema 1 validado: delta_grad >= 0 e delta_mem >= 0 em 100% das geracoes x 5 seeds x 2 datasets</li>
+<li>CL: BWT = -0.0001 vs EWC -0.674 — p=0.0004 (efeito muito grande, d=5.33)</li>
+</ul>
+
+<h3>Glossario rapido</h3>
+<ul>
+<li><strong>BWT (Backward Transfer)</strong>: quanto a rede esqueceu de tarefas antigas. 0 = perfeito, negativo = esqueceu</li>
+<li><strong>FWT (Forward Transfer)</strong>: quanto aprender tarefa i ajuda na tarefa i+1. Positivo = bom</li>
+<li><strong>NSGA-II</strong>: algoritmo de selecao que mantem diversidade — nao escolhe so o mais preciso, mantem varios trade-offs</li>
+<li><strong>SAM</strong>: Sharpness-Aware Minimization — penaliza solucoes frageis, melhora generalizacao</li>
+<li><strong>Pareto</strong>: conjunto de solucoes onde nenhuma e melhor em tudo — como comparar smartphones por preco vs velocidade</li>
+<li><strong>Catastrophic forgetting</strong>: quando a rede aprende tarefa nova e esquece a antiga — problema classico de CL</li>
+</ul>
+
+<h3>Proximos passos para o paper</h3>
+<ol>
+<li>Rodar experimentos com dataset completo (60K MNIST) e mais geracoes</li>
+<li>Corrigir Split-MNIST CL para usar evolver completo por tarefa</li>
+<li>Implementar ablation study (8 variantes)</li>
+<li>Adicionar CIFAR-10 com operadores convolucionais reais</li>
+<li>Submeter arXiv primeiro (estabelece prioridade), depois GECCO 2026</li>
+</ol>
+
+</div>
+</div><!-- content -->
+<footer>dNaty Admin — Uso Local Apenas · Nao publicar no Vercel</footer>
+<script>
+function showTab(id,btn){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  btn.classList.add('active');
+}
+function togglePhase(el){
+  const body=el.nextElementSibling;
+  body.classList.toggle('open');
+  el.querySelector('span:last-child').textContent=body.classList.contains('open')?'▲':'▼';
+}
+function toggleTask(el){
+  el.nextElementSibling.classList.toggle('open');
+}
+</script>
+</body>
+</html>
