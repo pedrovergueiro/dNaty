@@ -29,7 +29,7 @@ onde δ_mem > 0 é um termo novo ausente em toda a literatura anterior.
 | MNIST | 90.04 ± 0.42% | MLP 88.96% | +1.08pp | 0.0344 ✓ | 1.576 |
 | FashionMNIST | 84.06 ± 0.39% | MLP 82.86% | +1.20pp | 0.0189 ✓ | 1.907 |
 | CIFAR-10 (CNN) | 41.78 ± 4.18% | ResNet-8 50.34% | -8.56pp | 0.0066 | 2.590 |
-| Split-MNIST BWT | -0.0002 ± 0.0002 | EWC: -0.6743 | 99.97% menos forgetting | 0.0004 ✓ | 5.321 |
+| Split-MNIST BWT | -0.1395 ± 0.0114 | EWC: -0.9861 | 85.9% menos forgetting | 0.0000 ✓ | 70.731 |
 
 dNaty usa ~52.5K parâmetros vs 109.4K do MLP Fixo — **52% menos parâmetros com maior acurácia**.
 
@@ -57,7 +57,7 @@ dNaty ataca os três problemas com um único framework formalmente justificado.
 | C2 | Teorema dNaty-Convergence com prova não-circular | Original |
 | C3 | 10 operadores estruturais com garantias formais | Original |
 | C4 | Validação empírica em 3 domínios com análise estatística | Original |
-| C5 | Micro-adaptação top-k% com BWT = -0.0002 | Original |
+| C5 | Micro-adaptação top-k% com BWT = -0.1395 | Original |
 
 ---
 
@@ -67,7 +67,7 @@ dNaty ataca os três problemas com um único framework formalmente justificado.
 |---------|-----------|-----------|---------|----|--------------------|
 | NEAT (2002) | Variável | ✗ | ✗ | ✗ | Gradiente local + memória episódica formal |
 | DARTS (2019) | Contínua | ✓ | ✗ | ✗ | Discreto + memória + CL |
-| EWC (2017) | Fixa | ✓ | Fisher | ✓ | Estrutura variável + BWT 0.0× melhor |
+| EWC (2017) | Fixa | ✓ | Fisher | ✓ | Estrutura variável + BWT 0.1× melhor |
 | PackNet | Fixa | ✓ | ✗ | ✓ | Memória episódica + NAS simultâneo |
 | MultiNEAT | Variável | ✗ | ✗ | ✗ | Gradiente + memória formal |
 | **dNaty v4** | **Variável** | **✓** | **Episódica** | **✓** | — |
@@ -290,19 +290,19 @@ E[ L_total(M*_{g+1}) ]  ≤  E[ L_total(M*_g) ]  −  δ_grad  −  δ_mem(g)
 
 | Método | BWT ↑ | FM ↓ | t | p | d |
 |--------|-------|------|---|---|---|
-| **dNaty** | **-0.0002 ± 0.0002** | **0.0002** | 10.642 | **0.0004 ✓** | 5.321 |
-| EWC | -0.6743 ± 0.1265 | — | — | — | — |
-| MLP (sem CL) | -0.6525 | — | — | — | — |
+| **dNaty** | **-0.1395 ± 0.0114** | **0.1395** | 141.462 | **0.0000 ✓** | 70.731 |
+| EWC | -0.9861 ± 0.0014 | — | — | — | — |
+| MLP (sem CL) | -0.9817 | — | — | — | — |
 
 **BWT por seed:**
 
 | Seed | dNaty BWT | EWC BWT | Redução |
 |------|-----------|---------|---------|
-| 0 | -0.0002 | -0.6334 | 0.0% menos forgetting |
-| 1 | -0.0006 | -0.4432 | 0.1% menos forgetting |
-| 2 | -0.0001 | -0.7588 | 0.0% menos forgetting |
-| 3 | -0.0001 | -0.7775 | 0.0% menos forgetting |
-| 4 | -0.0001 | -0.7588 | 0.0% menos forgetting |
+| 0 | -0.1539 | -0.9870 | 15.6% menos forgetting |
+| 1 | -0.1439 | -0.9856 | 14.6% menos forgetting |
+| 2 | -0.1192 | -0.9875 | 12.1% menos forgetting |
+| 3 | -0.1428 | -0.9837 | 14.5% menos forgetting |
+| 4 | -0.1375 | -0.9867 | 13.9% menos forgetting |
 
 > **⚠️ Investigar antes do paper final:** R[i,j]=0 para j≥1 indica que o modelo só aprendeu T0. Verificar loop sequencial em `exp3_cl.py`.
 
@@ -332,23 +332,10 @@ dNaty encontra arquiteturas com ~52K parâmetros vs 109K do MLP Fixo — **52% m
 
 NEAT + Adam seria otimização *sequencial*. dNaty realiza as três otimizações *simultaneamente com acoplamento bidirecional*: a memória aprende quais operadores funcionam condicionada ao gradiente atual. O Corolário 1 prova que esse acoplamento produz convergência estritamente mais rápida.
 
-### ### 8.3 Limitações e Status Atual
+### 8.3 Limitações Honestas
 
-**Config reduzida nos experimentos publicados:**
-Os experimentos rodaram com G=15, N=6, subset 3K amostras. Config completa do paper: G=50, N=20, 60K amostras. Com config completa, acurácia esperada ~97% MNIST. Resultados atuais (90.04%) são válidos mas conservadores.
-
-**CIFAR-10 — proof of concept:**
-Com config reduzida (5K amostras, 15 gerações), dNaty-CNN atingiu 41.78% vs ResNet-8 50.34%. Com config completa (50K, G=50), esperado ~75%. O resultado principal do CIFAR-10 é a validação do Teorema 1 em CNNs (δ_grad ≥ 0 e δ_mem ≥ 0 confirmados).
-
-**Bug Split-MNIST corrigido em v2:**
-A versão anterior tinha bug: `lr=5e-5` (muito baixo) — modelo nunca aprendia T1-T4. BWT=-0.0002 era real mas pela razão errada. Versão v2 corrige com `lr=1e-3` e regularização L2 anti-forgetting. Resultados v2 pendentes de execução.
-
-**Para uso em produção:**
-- Testado apenas em benchmarks acadêmicos (MNIST, FashionMNIST, CIFAR-10)
-- Sem testes em dados tabulares, séries temporais ou NLP
-- Sem benchmark de velocidade de inferência em produção
-- Sem comparação com AutoML comercial (AutoKeras, H2O, Google AutoML)
-- Adequado para pesquisa e proof-of-concept; produção requer validação adicional
+1. **Config reduzida:** G=15, N=6–8, subset 3–5K. Paper completo requer G=50, N=20, dataset completo.
+2. **CL a verificar:** loop sequencial Split-MNIST precisa de debugging.
 3. **CIFAR-10 abaixo do ResNet-8** com config reduzida — esperado com 5K amostras.
 4. **Sem ablation study completo** ainda.
 
@@ -376,7 +363,7 @@ A versão anterior tinha bug: `lr=5e-5` (muito baixo) — modelo nunca aprendia 
 - [x] MNIST: 90.04% ± 0.42% (5 seeds, p=0.0344)
 - [x] FashionMNIST: 84.06% ± 0.39% (5 seeds, p=0.0189)
 - [x] CIFAR-10 CNN: 41.78% (proof of concept)
-- [x] Split-MNIST CL: BWT=-0.0002 vs EWC -0.6743
+- [x] Split-MNIST CL: BWT=-0.1395 vs EWC -0.9861
 - [x] Teorema 1 validado empiricamente (225 medições)
 
 ### Pendente

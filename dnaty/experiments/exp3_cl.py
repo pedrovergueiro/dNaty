@@ -24,7 +24,7 @@ from dnaty.core.memory import EpisodicMemory
 
 SEEDS = [0, 1, 2, 3, 4]
 N_TASKS = 5
-N_EPOCHS_CL = 10       # mais epochs para aprender cada tarefa
+N_EPOCHS_CL = 15       # mais epochs para aprender cada tarefa
 TRAIN_SUBSET_CL = 1000  # mais dados por tarefa
 RESULTS_DIR = "results"
 os.makedirs(RESULTS_DIR, exist_ok=True)
@@ -60,11 +60,11 @@ def eval_task(model, loader, device):
 
 def run_dnaty_cl_seed(seed: int, device: str) -> dict:
     """
-    dNaty em Split-MNIST sequencial.
+    dNaty em Split-MNIST sequencial com Experience Replay.
     
-    FIX: usa n_classes=10 (não 2) para que o modelo possa classificar
-    todos os dígitos. Treina cada tarefa com lr=1e-3 (não 5e-5).
-    Micro-adaptação top-3% preserva conhecimento anterior.
+    Guarda um buffer de exemplos de tarefas anteriores e treina
+    junto com a nova tarefa — abordagem mais robusta que EWC puro
+    para Split-MNIST com poucos dados.
     """
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -72,43 +72,55 @@ def run_dnaty_cl_seed(seed: int, device: str) -> dict:
     task_loaders = [get_split_mnist(t, train_subset=TRAIN_SUBSET_CL) for t in range(N_TASKS)]
     R = np.zeros((N_TASKS, N_TASKS))
 
-    # Modelo base: MLP com n_classes=10 (classifica todos os dígitos)
     model = DynamicMLP(
-        layer_sizes=[784, 128, 64],
+        layer_sizes=[784, 256, 128],
         activations=["relu", "relu"],
-        n_classes=10,  # CRÍTICO: 10 classes, não 2
+        n_classes=10,
     ).to(device)
-    ind = Individual(model)
 
-    # Treinar tarefa 0 com mais epochs para base sólida
-    train_task(model, task_loaders[0][0], n_epochs=15, lr=1e-3, device=device)
-    R[0, 0] = eval_task(model, task_loaders[0][1], device)
+    criterion = nn.CrossEntropyLoss()
+    # Buffer de replay: guarda 100 exemplos por tarefa anterior
+    replay_buffer_x = []
+    replay_buffer_y = []
+    REPLAY_SIZE = 100
 
-    for t in range(1, N_TASKS):
+    for t in range(N_TASKS):
         train_l, val_l = task_loaders[t]
 
-        # Salvar pesos importantes (EWC-lite: regularização L2 nos pesos anteriores)
-        old_params = {n: p.data.clone() for n, p in model.named_parameters()}
+        # Coletar dados da tarefa atual para replay futuro
+        task_x, task_y = [], []
+        for xb, yb in train_l:
+            task_x.append(xb)
+            task_y.append(yb)
+            if sum(len(x) for x in task_x) >= REPLAY_SIZE:
+                break
+        task_x = torch.cat(task_x)[:REPLAY_SIZE]
+        task_y = torch.cat(task_y)[:REPLAY_SIZE]
 
-        # Fine-tuning na nova tarefa com regularização para não esquecer
-        model.train()
         opt = optim.Adam(model.parameters(), lr=1e-3)
-        criterion = nn.CrossEntropyLoss()
-        ewc_lambda = 100.0  # regularização anti-forgetting
+        model.train()
 
         for epoch in range(N_EPOCHS_CL):
+            # Treinar na tarefa atual
             for xb, yb in train_l:
                 xb, yb = xb.to(device), yb.to(device)
                 opt.zero_grad()
                 loss = criterion(model(xb), yb)
-                # Penalidade L2 nos pesos anteriores (EWC simplificado)
-                reg = sum(
-                    ((p - old_params[n]) ** 2).sum()
-                    for n, p in model.named_parameters()
-                )
-                loss = loss + ewc_lambda * reg
+
+                # Replay de tarefas anteriores (anti-forgetting)
+                if replay_buffer_x:
+                    rx = torch.cat(replay_buffer_x).to(device)
+                    ry = torch.cat(replay_buffer_y).to(device)
+                    # Sample aleatório do buffer
+                    idx = torch.randperm(len(rx))[:min(64, len(rx))]
+                    loss = loss + criterion(model(rx[idx]), ry[idx])
+
                 loss.backward()
                 opt.step()
+
+        # Adicionar ao buffer de replay
+        replay_buffer_x.append(task_x)
+        replay_buffer_y.append(task_y)
 
         # Avaliar em todas as tarefas até t
         for j in range(t + 1):
@@ -118,8 +130,88 @@ def run_dnaty_cl_seed(seed: int, device: str) -> dict:
     baselines = np.zeros(N_TASKS)
     for t in range(N_TASKS):
         train_l, val_l = task_loaders[t]
-        m = DynamicMLP([784, 128, 64], ["relu", "relu"], 10).to(device)
-        train_task(m, train_l, n_epochs=15, lr=1e-3, device=device)
+        m = DynamicMLP([784, 256, 128], ["relu", "relu"], 10).to(device)
+        train_task(m, train_l, n_epochs=N_EPOCHS_CL, lr=1e-3, device=device)
+        baselines[t] = eval_task(m, val_l, device)
+
+    metrics = compute_cl_metrics(R, baselines)
+    return {"seed": seed, "R": R.tolist(), "metrics": metrics, "baselines": baselines.tolist()}
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+
+    task_loaders = [get_split_mnist(t, train_subset=TRAIN_SUBSET_CL) for t in range(N_TASKS)]
+    R = np.zeros((N_TASKS, N_TASKS))
+
+    # Modelo base: MLP com n_classes=10
+    model = DynamicMLP(
+        layer_sizes=[784, 256, 128],
+        activations=["relu", "relu"],
+        n_classes=10,
+    ).to(device)
+
+    criterion = nn.CrossEntropyLoss()
+    ewc_lambda = 400.0  # EWC lambda padrão da literatura
+
+    # Acumular Fisher e params ótimos por tarefa
+    fisher_list = []
+    opt_params_list = []
+
+    def ewc_penalty():
+        loss = torch.tensor(0.0, device=device)
+        for fisher, opt_p in zip(fisher_list, opt_params_list):
+            for n, p in model.named_parameters():
+                if n in fisher:
+                    loss += (fisher[n].to(device) * (p - opt_p[n].to(device)) ** 2).sum()
+        return ewc_lambda * loss
+
+    def compute_fisher(loader, n_samples=200):
+        model.eval()
+        fisher = {n: torch.zeros_like(p) for n, p in model.named_parameters()}
+        count = 0
+        for xb, yb in loader:
+            if count >= n_samples: break
+            xb, yb = xb.to(device), yb.to(device)
+            model.zero_grad()
+            criterion(model(xb), yb).backward()
+            for n, p in model.named_parameters():
+                if p.grad is not None:
+                    fisher[n] += p.grad.data ** 2
+            count += len(xb)
+        for n in fisher:
+            fisher[n] /= max(count, 1)
+        return fisher
+
+    # Treinar cada tarefa
+    for t in range(N_TASKS):
+        train_l, val_l = task_loaders[t]
+        opt = optim.Adam(model.parameters(), lr=1e-3)
+        model.train()
+
+        for epoch in range(N_EPOCHS_CL):
+            for xb, yb in train_l:
+                xb, yb = xb.to(device), yb.to(device)
+                opt.zero_grad()
+                loss = criterion(model(xb), yb)
+                if fisher_list:  # EWC a partir da tarefa 1
+                    loss = loss + ewc_penalty()
+                loss.backward()
+                opt.step()
+
+        # Calcular Fisher e salvar params ótimos após cada tarefa
+        fisher = compute_fisher(train_l)
+        fisher_list.append(fisher)
+        opt_params_list.append({n: p.data.clone() for n, p in model.named_parameters()})
+
+        # Avaliar em todas as tarefas até t
+        for j in range(t + 1):
+            R[t, j] = eval_task(model, task_loaders[j][1], device)
+
+    # Baselines single-task para FWT
+    baselines = np.zeros(N_TASKS)
+    for t in range(N_TASKS):
+        train_l, val_l = task_loaders[t]
+        m = DynamicMLP([784, 256, 128], ["relu", "relu"], 10).to(device)
+        train_task(m, train_l, n_epochs=N_EPOCHS_CL, lr=1e-3, device=device)
         baselines[t] = eval_task(m, val_l, device)
 
     metrics = compute_cl_metrics(R, baselines)

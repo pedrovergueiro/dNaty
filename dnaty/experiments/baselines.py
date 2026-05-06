@@ -158,7 +158,7 @@ def train_ewc_cl(
     """
     T = len(task_loaders)
     R = np.zeros((T, T))
-    model = FixedMLP(input_size=input_size, hidden=[128, 64], n_classes=n_classes).to(device)
+    model = FixedMLP(input_size=input_size, hidden=[256, 128], n_classes=n_classes).to(device)
     ewc = EWC(model, ewc_lambda)
     optimizer = optim.Adam(model.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss()

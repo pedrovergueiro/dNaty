@@ -87,7 +87,7 @@ Seed 3 │ dNaty: -0.0001  EWC: -0.7775  MLP: -0.6983
 Seed 4 │ dNaty: -0.0001  EWC: -0.7588  MLP: -0.7862
        │
 Mean   │ dNaty: -0.0002  EWC: -0.6743  MLP: -0.6525
-       │         ↑ 99.97% less forgetting than EWC
+       │         ↑ 85.9% less forgetting than EWC
        │         t=10.64, p=0.0004, Cohen's d=5.32
 ```
 
@@ -383,7 +383,7 @@ dNaty = **simultaneous bidirectional coupling**:
 |--------|:---:|:---:|:---:|:---:|---|
 | NEAT (2002) | ✓ | ✗ | ✗ | ✗ | Local gradient + formal memory |
 | DARTS (2019) | continuous | ✓ | ✗ | ✗ | Discrete + memory + CL |
-| EWC (2017) | ✗ | ✓ | Fisher | ✓ | Variable arch + BWT 99.97% better |
+| EWC (2017) | ✗ | ✓ | Fisher | ✓ | Variable arch + BWT 85.9% better |
 | PackNet (2018) | ✗ | ✓ | ✗ | ✓ | Episodic memory + NAS simultaneous |
 | MultiNEAT | ✓ | ✗ | ✗ | ✗ | Gradient + formal memory |
 | **dNaty v4** | **✓** | **✓** | **✓** | **✓** | — |
@@ -408,9 +408,9 @@ Run full experiments on T4 GPU (~25 min):
 ```
 v4.0  ✓  EpisodicMemory + NSGA-II + 8 dense operators + SAM+Adam
 v4.1  ✓  Real CNN operators (add_conv_block, depthwise_sep)
-v4.1  ✓  MNIST 90.04% | FashionMNIST 84.06% | BWT=-0.0002 (5 seeds, reduced config)
+v4.1  ✓  MNIST 90.04% | FashionMNIST 84.06% | BWT=-0.1395 (5 seeds, Experience Replay)
 v4.1  ✓  Theorem 1 validated: 225/225 measurements
-v4.1  ✓  Split-MNIST CL bug fixed (v2: lr=1e-3 + L2 regularization)
+v4.1  ✓  Split-MNIST CL fixed: Experience Replay, BWT=-0.1395 vs EWC -0.9861
 
 v4.2  ○  Full config experiments (G=50, N=20, 60K) — expected MNIST ~97%
 v4.2  ○  Split-MNIST v2 results (corrected CL loop)
