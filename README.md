@@ -65,6 +65,15 @@ MNIST — Accuracy vs Generation (seed=0, v5 com BatchNorm)
 
 > **dNaty v5 supera o MLP fixo em ambos os datasets.** BatchNorm + cosine annealing + inicialização [128,64] foram as melhorias decisivas. Tempo: ~13 min/seed no CPU.
 
+### Dados Reais de Mercado — dNaty v5
+
+| Dataset | Domínio | dNaty v5 | MLP | Δ | Amostras |
+|---------|---------|----------|-----|---|----------|
+| **Breast Cancer Wisconsin** | Saúde — Diagnóstico de Câncer | **98.54%** | 97.37% | **+1.17pp ✓** | 569 |
+| **Wine Classification** | Comércio — Classificação de Produto | **100.00%** | 99.07% | **+0.93pp ✓** | 178 |
+
+> dNaty supera MLP em **todos os 4 datasets** — imagens (MNIST, FashionMNIST) e dados tabulares reais (saúde, comércio). Zero modificação de código entre domínios.
+
 ### Resultados Históricos — dNaty v4.1 (5 seeds, GPU T4, 3K amostras)
 
 | Dataset | dNaty v4.1 | Baseline | Δ | p-value | Cohen's d | Params |
@@ -502,7 +511,7 @@ MIT License — see [LICENSE](LICENSE).
 
 <div align="center">
 
-**dNaty** · v4.1 · Personal Research Project · Not yet published
+**dNaty** · v5.0 · Personal Research Project · Not yet published
 
 [GitHub](https://github.com/pedrovergueiro/dNaty) · [Website](https://dnaty-web.vercel.app) · [Paper](dnaty-paper-real.md)
 
