@@ -9,9 +9,13 @@ from scipy import stats
 def paired_ttest(a: list[float], b: list[float]) -> tuple[float, float, float]:
     """Retorna (t_stat, p_value, cohen_d)."""
     a_arr, b_arr = np.array(a), np.array(b)
+    if len(a_arr) != len(b_arr):
+        raise ValueError("paired_ttest exige listas com o mesmo tamanho")
+    if len(a_arr) < 2:
+        raise ValueError("paired_ttest exige pelo menos 2 pares")
     t_stat, p_val = stats.ttest_rel(a_arr, b_arr)
     diff = a_arr - b_arr
-    d = float(diff.mean() / (diff.std() + 1e-12))
+    d = float(diff.mean() / (diff.std(ddof=1) + 1e-12))
     return float(t_stat), float(p_val), d
 
 

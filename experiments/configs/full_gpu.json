@@ -1,0 +1,18 @@
+{
+  "profile": "full_gpu",
+  "description": "Publication-grade target. Requires GPU and long runtime.",
+  "experiments": ["exp1_mnist", "exp2_cifar", "exp3_cl"],
+  "minimum_requirements": {
+    "gpu": true,
+    "seeds": 5,
+    "ablation": true
+  },
+  "cifar": {
+    "seeds": [0, 1, 2, 3, 4],
+    "n_generations": 30,
+    "n_pop": 12,
+    "t_local": 4,
+    "batch_size": 256,
+    "train_subset": null
+  }
+}

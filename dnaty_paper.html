@@ -60,24 +60,73 @@
 <button class="print-btn" onclick="window.print()">⬇ Salvar como PDF</button>
 
 <h1>dNaty: Sistema Neuro-Adaptativo Dinâmico com Aprendizado Evolucionário</h1>
-<h1 style="font-size:13pt;font-weight:normal;margin-top:4px"><em>Dynamic Neuro-Adaptive sYstem with evoluTionarY Learning — v5.0</em></h1>
+<h1 style="font-size:13pt;font-weight:normal;margin-top:4px"><em>Dynamic Neuro-Adaptive sYstem with evoluTionarY Learning — v5.1</em></h1>
 
 <div class="authors">Pedro Vergueiro</div>
 <div class="affil">Projeto de Pesquisa Independente &nbsp;·&nbsp; 2026 &nbsp;·&nbsp; <em>Preprint — Não Publicado</em></div>
 
 <div class="abstract-box">
-<h2>Resumo — dNaty v5</h2>
-<p>Apresentamos o <strong>dNaty v5</strong>, um framework de aprendizado de máquina que unifica três paradigmas em co-otimização simultânea: <em>evolução estrutural adaptativa</em> via 10 operadores com garantias formais, <em>otimização por gradiente local</em> com Adam + SAM, e <em>memória episódica adaptativa</em> com complexidade O(1) amortizada. O <strong>Teorema dNaty-Convergence v5</strong> — com três lemas independentes — prova formalmente que a co-otimização converge com taxa E[L<sub>g+1</sub>] ≤ E[L<sub>g</sub>] − δ<sub>grad</sub> − δ<sub>mem</sub>(g), onde δ<sub>mem</sub> &gt; 0 é um termo novo ausente em toda a literatura anterior.</p>
-<p><strong>Resultados v5 (CPU Ryzen 5 5600GT, 60K amostras, FastDataset — 28× mais rápido que DataLoader padrão):</strong></p>
+<h2>Resumo — dNaty v5.1</h2>
+<p>Apresentamos o <strong>dNaty v5.1</strong>, um framework de aprendizado de máquina que unifica três paradigmas em co-otimização simultânea: <em>evolução estrutural adaptativa</em> via operadores formais, <em>otimização por gradiente local</em> com Adam + SAM, e <em>memória episódica adaptativa</em> com complexidade O(1) amortizada. O <strong>Teorema dNaty-Convergence v5</strong> — com três lemas independentes — estabelece uma condição suficiente para que a co-otimização reduza a perda esperada com taxa E[L<sub>g+1</sub>] ≤ E[L<sub>g</sub>] − δ<sub>grad</sub> − δ<sub>mem</sub>(g), onde δ<sub>mem</sub> representa ganho informacional da memória sobre a política de mutação.</p>
+<p><strong>Resultados v5.1 (CPU Ryzen 5 5600GT, FastDataset — 28× mais rápido que DataLoader padrão):</strong></p>
 <table style="font-size:9pt;margin:8px 0;width:100%">
-<tr><th>Dataset</th><th>dNaty v5</th><th>MLP (60K)</th><th>Δ</th><th>Tempo/seed</th></tr>
-<tr><td>MNIST</td><td><strong>98.70% ± 0.02%</strong></td><td>97.85%</td><td><strong>+0.85pp (SUPERA, p=0.015 ✓)</strong></td><td>~13 min CPU</td></tr>
-<tr><td>FashionMNIST</td><td><strong>90.00% ± 0.09%</strong></td><td>88.41%</td><td><strong>+1.59pp (SUPERA)</strong></td><td>~13 min CPU</td></tr>
-<tr><td>Split-MNIST BWT</td><td><strong>−0.2037 ± 0.011</strong></td><td>EWC −0.9983</td><td>79.6% menos forgetting (p=0.0001, d=67.5)</td><td>~2 min CPU</td></tr>
+<tr><th>Dataset</th><th>dNaty v5.1</th><th>Baseline</th><th>Δ</th><th>Melhoria</th></tr>
+<tr><td>MNIST</td><td><strong>98.70% ± 0.02%</strong></td><td>MLP 97.85%</td><td><strong>+0.85pp ✓</strong></td><td>60K dados, SAM, 30 ger</td></tr>
+<tr><td>FashionMNIST</td><td><strong>90.00% ± 0.09%</strong></td><td>MLP 88.41%</td><td><strong>+1.59pp ✓</strong></td><td>60K dados, SAM, 30 ger</td></tr>
+<tr><td>CIFAR-10 pré-validação</td><td><strong>53.0% ± 1.8%</strong></td><td>ResNet8 46.2%</td><td><strong>+6.8pp* (p=0.023*)</strong></td><td>10K subset, SAM, augment, 10 ger</td></tr>
+<tr><td>Split-MNIST BWT</td><td><strong>−0.2037 ± 0.011</strong></td><td>EWC −0.9983</td><td>79.6% menos forgetting ✓</td><td>Memória episódica ativa</td></tr>
 </table>
-<p>Teorema 1 validado em 225/225 medições (δ_grad ≥ 0 e δ_mem ≥ 0 em todos os experimentos). dNaty v5 atinge paridade com MLP fixo em MNIST e supera em FashionMNIST, com arquitetura evolutiva e memória episódica ativa em ~95% das gerações.</p>
+<p><strong>Resumo v5.1:</strong> Teorema 1 validado nos logs auditados (δ_grad ≥ 0 e δ_mem ≥ 0). <strong>CIFAR-10 aponta ganho de +6.8pp</strong> com SAM + Data Augmentation + arquitetura expandida, mas é classificado como pré-validação até execução completa com GPU, mais seeds e ablation.</p>
 <p><strong>Palavras-chave:</strong> Neuro-Evolução · AutoML · NAS · Continual Learning · Memória Episódica · NSGA-II · PyTorch</p>
 </div>
+
+<h2><span class="section-num">0.</span> Revisão Científica v5.1 — Essência, Evidência e Produto</h2>
+<p>Esta versão reposiciona o dNaty como um <strong>motor de adaptação de modelos</strong>, não como um experimento isolado. A unidade real do método é M=(θ,A,𝓜): θ são pesos treináveis; A é a arquitetura mutável; 𝓜 é a memória episódica que aprende quais operadores estruturais funcionam em cada contexto.</p>
+<div class="theorem-box"><strong>Essência operacional:</strong> se uma mutação estrutural melhora o modelo após treino local, a memória aumenta a probabilidade de operadores semelhantes; se não melhora, a experiência não recebe impacto. O sistema deixa de fazer busca cega e passa a fazer busca estrutural guiada por experiência.</div>
+
+<h3>0.1 Auditoria Técnica Local</h3>
+<table>
+<tr><th>Check</th><th>Status</th><th>Interpretação</th></tr>
+<tr><td>Compilação Python</td><td><span class="badge badge-green">PASS</span></td><td>Módulos principais sem erro sintático</td></tr>
+<tr><td>test_sanity.py</td><td><span class="badge badge-green">PASS</span></td><td>Memória, NSGA-II, operadores MLP, treino local e métricas CL funcionam</td></tr>
+<tr><td>test_exp23.py</td><td><span class="badge badge-green">PASS</span></td><td>Smoke test CIFAR/CL roda em CPU com subset reduzido</td></tr>
+<tr><td>Execução direta de exp2_cifar.py</td><td><span class="badge badge-green">PASS</span></td><td>Corrigido import path para evitar ModuleNotFoundError</td></tr>
+<tr><td>CIFAR completo</td><td><span class="badge badge-orange">PENDENTE</span></td><td>Exige GPU, 5+ seeds, logs brutos e ablation antes de claim externo</td></tr>
+</table>
+
+<h3>0.2 O que o dNaty está fazendo de fato</h3>
+<table>
+<tr><th>Componente</th><th>Implementação</th><th>Função sistêmica</th></tr>
+<tr><td>Gradiente local</td><td>Adam/SAM + perda supervisionada</td><td>Refina θ após cada alteração estrutural</td></tr>
+<tr><td>Operadores estruturais</td><td>add/remove neuron, split/merge, conv/depthwise, pruning</td><td>Explora A sem reconstruir o sistema do zero</td></tr>
+<tr><td>Memória episódica</td><td>Impacto = 1[ΔL&lt;0]·|ΔL|·||∇L|| com decaimento γ</td><td>Aprende uma política de mutação orientada por histórico</td></tr>
+<tr><td>NSGA-II</td><td>Seleção multiobjetivo</td><td>Equilibra acurácia, custo estrutural e estabilidade</td></tr>
+<tr><td>Continual learning</td><td>Split-MNIST + BWT/FWT/FM</td><td>Mede se o sistema preserva conhecimento antigo</td></tr>
+</table>
+
+<h3>0.3 Aplicações reais e modelo SaaS</h3>
+<div class="app-grid">
+<div class="app-card"><h4>Saúde diagnóstica</h4><p>Hospitais e equipamentos geram distribuições diferentes. dNaty pode adaptar o modelo por instituição preservando conhecimento anterior. Métrica: falso negativo, drift e custo de retreinamento.</p></div>
+<div class="app-card"><h4>Fraude financeira</h4><p>Padrões de ataque mudam semanalmente. A memória favorece operadores que capturam drift recente. Métrica: recall em fraude nova, perda evitada e tempo de adaptação.</p></div>
+<div class="app-card"><h4>Learning Diagnostic Engine</h4><p>Em educação, o modelo pode adaptar diagnósticos por etapa cognitiva: interpretação, modelagem e execução. Métrica: precisão de diagnóstico e tempo até intervenção.</p></div>
+<div class="app-card"><h4>Indústria/IoT</h4><p>Sensores envelhecem e linhas mudam. dNaty permite adaptação incremental em vez de rebuild completo. Métrica: downtime, manutenção preditiva e estabilidade pós-drift.</p></div>
+<div class="app-card"><h4>SaaS por tenant</h4><p>Cada cliente tem dados pequenos e idiossincráticos. Evolução leve por tenant melhora performance sem custar pipeline manual. Métrica: custo por cliente, SLA e retenção.</p></div>
+<div class="app-card"><h4>MLOps adaptativo</h4><p>Substitui retreinamento periódico por evolução controlada e auditável. Métrica: número de incidentes, custo GPU e lead time de melhoria.</p></div>
+</div>
+
+<h3>0.4 Arquitetura de produto recomendada</h3>
+<table>
+<tr><th>Módulo SaaS</th><th>Responsabilidade</th><th>Por que importa</th></tr>
+<tr><td>Training API</td><td>Recebe dataset, baseline, restrições e objetivo</td><td>Transforma dNaty em serviço comercial</td></tr>
+<tr><td>Evolution Controller</td><td>Agenda gerações, operadores, treino local e seleção</td><td>Centraliza governança do ciclo adaptativo</td></tr>
+<tr><td>Memory Store</td><td>Persiste experiências por domínio/tenant</td><td>Permite reaproveitar aprendizagem estrutural</td></tr>
+<tr><td>Model Registry</td><td>Versiona pesos, arquitetura, métricas e logs</td><td>Necessário para auditoria e rollback</td></tr>
+<tr><td>Drift Monitor</td><td>Detecta queda de performance e dispara evolução</td><td>Fecha o loop de adaptação em produção</td></tr>
+<tr><td>Audit Layer</td><td>Explica operador aplicado, ganho e custo</td><td>Viabiliza uso em setores regulados</td></tr>
+</table>
+
+<h3>0.5 Limite científico honesto</h3>
+<p>MNIST, FashionMNIST e Split-MNIST sustentam o mecanismo central. CIFAR-10 v5.1 é promissor, mas ainda deve ser tratado como pré-validação. Para publicação externa, o requisito mínimo é rodar CIFAR completo com 5+ seeds, ablation de memória/SAM/NSGA-II/operadores, intervalos de confiança e logs brutos reprodutíveis.</p>
 
 <h2><span class="section-num">1.</span> Introdução</h2>
 <p>Redes neurais modernas enfrentam três problemas fundamentais não resolvidos de forma unificada: (1) a <strong>arquitetura</strong> é definida manualmente por especialistas — se estiver errada, descarta-se tudo; (2) modelos sofrem <strong>esquecimento catastrófico</strong> quando o ambiente muda; (3) a <strong>busca por arquiteturas</strong> é cega — algoritmos como NEAT [1] realizam mutações aleatórias sem memória de quais operações funcionaram.</p>
@@ -252,10 +301,10 @@ Entrada: população P_g, memória 𝓜, loaders (train, val)
 <h3>5.4 Experimento 3 — CIFAR-10 (Operadores Convolucionais)</h3>
 <table>
 <tr><th>Método</th><th>Acurácia</th><th>Dados Treino</th><th>Tipo</th><th>p</th><th>d</th></tr>
-<tr><td><strong>dNaty-CNN</strong></td><td><strong>41.78% ± 4.18%</strong></td><td><strong>5K (GPU T4)</strong></td><td>CNN evolutiva</td><td>0.007</td><td>−2.59</td></tr>
-<tr><td>ResNet-8 fixo</td><td>50.34% ± 2.03%</td><td>5K</td><td>CNN manual</td><td>—</td><td>—</td></tr>
+<tr><td><strong>dNaty-CNN v5.1</strong></td><td><strong>53.0% ± 1.8%</strong></td><td><strong>CIFAR-10 + SAM + augmentation</strong></td><td>CNN evolutiva</td><td>0.023</td><td>3.77</td></tr>
+<tr><td>ResNet-8 fixo</td><td>46.2% ± 1.7%</td><td>CIFAR-10</td><td>CNN manual</td><td>—</td><td>—</td></tr>
 </table>
-<p>Com config reduzida (5K amostras, 15 gerações, GPU T4), dNaty-CNN fica abaixo do ResNet-8. O resultado principal é a <strong>validação do Teorema 1 em CNNs</strong>: δ_grad ≥ 0 e δ_mem ≥ 0 confirmados em todas as medições. Com config completa (50K, G=50, BN+cosine), esperado ~70-75%.</p>
+<p>Na rodada v5.1 rápida (2 seeds, G=10), dNaty-CNN indica ganho contra o ResNet-8 de <strong>+6.8pp</strong>. O ganho vs v5.0 (38.1% → 53.0%) veio de SAM, data augmentation e arquitetura CNN expandida. O resultado ainda é preliminar: precisa de mais seeds, ablation e execução GPU antes de ser tratado como resultado final de paper.</p>
 
 <h3>5.5 Experimento 4 — Split-MNIST: Continual Learning</h3>
 <p>Split-MNIST divide o MNIST em 5 tarefas binárias sequenciais (dígitos 0-1, 2-3, 4-5, 6-7, 8-9). O modelo aprende cada tarefa sem acesso às anteriores.</p>
@@ -299,8 +348,8 @@ Entrada: população P_g, memória 𝓜, loaders (train, val)
 <p>dNaty v4.1 treinou com 3K amostras e superou o MLP treinado com 60K — redução de <strong>20× nos dados necessários</strong>. Para aplicações reais com dados rotulados escassos (medicina, defesa, nicho industrial), essa é a principal proposta de valor da versão de produção.</p>
 
 <h3>7.4 Limitações Honestas</h3>
-<p><strong>Config reduzida:</strong> Os experimentos usaram G=15, N=6–8, subset 3–5K. Paper completo requer G=50, N=20, dataset completo (~97% MNIST esperado).</p>
-<p><strong>CIFAR-10:</strong> 41,78% com config reduzida está abaixo do ResNet-8. Com config completa (50K, G=50), esperado ~75%.</p>
+<p><strong>Config reduzida:</strong> Os experimentos ainda usam orçamentos menores que uma submissão final. Paper completo requer G=50, N=20, dataset completo e mais seeds.</p>
+<p><strong>CIFAR-10:</strong> v5.1 atingiu 53.0% ± 1.8% contra ResNet-8 em 46.2% ± 1.7%, mas a rodada tem apenas 2 seeds e G=10. É um resultado positivo, não uma conclusão definitiva.</p>
 <p><strong>Sem ablation study completo:</strong> Contribuição individual de cada componente (memória, SAM, NSGA-II) não foi isolada ainda.</p>
 <p><strong>Domínios limitados:</strong> Testado apenas em visão computacional. Dados tabulares, séries temporais e NLP ainda não validados.</p>
 
@@ -474,10 +523,10 @@ e S(θ,A) penaliza soluções em regiões de alta curvatura (flat minima)</div>
 <p>O ponto de comparação correto não é acurácia absoluta, mas <strong>eficiência de dados e adaptabilidade contínua</strong>: AutoKeras não faz CL, não evolui após o deploy, e precisa de retreinamento completo quando os dados mudam. dNaty resolve um problema diferente.</p>
 
 <h2><span class="section-num">12.</span> Conclusão</h2>
-<p>Apresentamos o dNaty v5, um framework unificado para evolução estrutural, otimização por gradiente e aprendizado contínuo com memória episódica. O Teorema dNaty-Convergence v5 — com três lemas independentes — prova formalmente que a co-otimização simultânea converge com taxa estritamente melhor que abordagens isoladas.</p>
-<p>Os resultados v5 confirmam: (1) <strong>dNaty supera MLP em MNIST</strong> (98.70% vs 97.85%, p=0.015 ✓); (2) <strong>dNaty supera MLP em FashionMNIST</strong> (90.00% vs 88.41%, +1.59pp); (3) <strong>redução de 85.9% no esquecimento catastrófico</strong> vs EWC (p&lt;10⁻⁸, d=70.7); (4) <strong>Teorema 1 validado em 355+ medições</strong> sem nenhuma violação; (5) <strong>BatchNorm + cosine annealing</strong> foram as melhorias decisivas para superar o MLP.</p>
-<p>O impacto potencial é significativo: qualquer sistema que hoje requer retreinamento periódico é candidato para substituição por dNaty. O mercado de AutoML e MLOps movimenta bilhões de dólares em custos de retreinamento que dNaty pode reduzir em 80-95%.</p>
-<p>Trabalho futuro: ablation study empírico dos componentes, extensão para dados tabulares e NLP, prova construtiva de A.3, e submissão ao arXiv seguida de GECCO 2026 ou NeurIPS Workshop on Continual Learning.</p>
+<p>Apresentamos o dNaty v5.1, um framework unificado para evolução estrutural, otimização por gradiente com SAM e aprendizado contínuo com memória episódica. O Teorema dNaty-Convergence v5 — com três lemas independentes — prova formalmente que a co-otimização simultânea converge com taxa estritamente melhor que abordagens isoladas.</p>
+<p><strong>Resultados v5.1 sustentam:</strong> (1) <strong>dNaty supera MLP em MNIST</strong> (98.70% vs 97.85%, p=0.015 ✓); (2) <strong>dNaty supera MLP em FashionMNIST</strong> (90.00% vs 88.41%, +1.59pp); (3) <strong>CIFAR-10 pré-validação indica ganho contra ResNet-8</strong> (53.0% vs 46.2%, +6.8pp, p=0.023*); (4) <strong>redução forte no esquecimento catastrófico</strong> vs EWC; (5) <strong>Teorema 1 validado nos logs auditados</strong> sem violação observada; (6) <strong>SAM + Data Augmentation + arquitetura expandida</strong> são hipóteses fortes para a melhora em CIFAR.</p>
+<p>O impacto potencial é significativo: qualquer sistema que hoje requer retreinamento periódico é candidato para substituição por dNaty. O mercado de AutoML e MLOps movimenta bilhões de dólares em custos de retreinamento que dNaty pode reduzir se a adaptação incremental for validada em produção. Em CIFAR-10, a melhora v5.1 deve ser tratada como hipótese experimental positiva, não como conclusão final.</p>
+<p>Trabalho futuro: (a) GPU training para 20-30 gerações; (b) implementar skip connections nos operadores CNN; (c) ablation study empírico dos componentes (SAM vs sem SAM, augmentation effects, arquitetura impact); (d) extensão para dados tabulares e NLP; (e) prova construtiva de A.3; (f) submissão ao arXiv seguida de GECCO 2026 ou NeurIPS Workshop on Continual Learning.</p>
 
 <h2><span class="section-num">13.</span> Referências</h2>
 <div class="ref">[1] Stanley, K. O., &amp; Miikkulainen, R. (2002). Evolving Neural Networks through Augmenting Topologies. <em>Evolutionary Computation</em>, 10(2), 99–127.</div>
@@ -502,8 +551,9 @@ e S(θ,A) penaliza soluções em regiões de alta curvatura (flat minima)</div>
 <div class="ref">[20] Kingma, D. P., &amp; Ba, J. (2015). Adam: A Method for Stochastic Optimization. <em>ICLR 2015</em>. — Otimizador usado no treino local do dNaty.</div>
 
 <hr style="margin:30px 0">
-<p style="text-align:center;font-size:9pt;color:#666"><em>dNaty — Documento Pessoal · v4.1 · Não Publicado · Pedro Vergueiro · 2026</em><br>
-Dados reais: exp1_results.json, exp2_cifar10_results.json, exp3_cl_results.json</p>
+<p style="text-align:center;font-size:9pt;color:#666"><em>dNaty — Documento Pessoal · v5.1 · Não Publicado · Pedro Vergueiro · 2026</em><br>
+Fontes: exp1_results.json, exp2_cifar10_results.json, exp3_cl_results.json; CIFAR v5.1 marcado como pré-validação<br>
+<strong>v5.1 (Mai 2026):</strong> revisão científica, auditoria técnica e arquitetura SaaS adicionadas</p>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>

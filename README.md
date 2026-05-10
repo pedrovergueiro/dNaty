@@ -7,14 +7,48 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-3776ab.svg?logo=python&logoColor=white)](https://www.python.org/)
 [![PyTorch 2.0+](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg?logo=pytorch&logoColor=white)](https://pytorch.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Preprint](https://img.shields.io/badge/preprint-v5.0-brightgreen.svg)](dnaty-paper-real.md)
+[![Preprint](https://img.shields.io/badge/preprint-v5.1-brightgreen.svg)](dnaty-paper-real.md)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/pedrovergueiro/dNaty/blob/main/dnaty_colab.ipynb)
 
 **The first algorithm to formally unify Neural Architecture Search (NAS) and Continual Learning (CL) with a convergence theorem.**
 
-[Paper](dnaty-paper-real.md) · [Website](https://dnaty-web.vercel.app) · [Colab Notebook](dnaty_colab.ipynb) · [Results](#results)
+[Paper](dnaty-paper-real.md) · [Manual](docs/USER_MANUAL.md) · [Protocol](docs/EXPERIMENT_PROTOCOL.md) · [Website](https://dnaty-web.vercel.app) · [Colab Notebook](dnaty_colab.ipynb) · [Results](#results)
 
 </div>
+
+---
+
+## Quickstart v5.1
+
+Install dNaty as a local library:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -e ".[dev]"
+```
+
+Prepare datasets:
+
+```powershell
+python -m experiments.prepare_datasets
+```
+
+Run the fast smoke validation:
+
+```powershell
+python -m experiments.run --profile smoke --notes "initial check"
+```
+
+Run a tracked CIFAR prevalidation:
+
+```powershell
+python -m experiments.run --profile prevalidation --experiment exp2_cifar --notes "CIFAR v5.1"
+```
+
+Every tracked run is saved under `results/runs/<timestamp>_<profile>/` with `config.json`, `manifest.json`, and copied outputs. Results without a manifest should not be used in the paper.
+
+See [docs/USER_MANUAL.md](docs/USER_MANUAL.md) for the step-by-step guide.
 
 ---
 

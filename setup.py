@@ -2,13 +2,13 @@ from setuptools import setup, find_packages
 
 setup(
     name="dnaty",
-    version="0.4.1",
+    version="5.1.0",
     description="Dynamic Neuro-Adaptive sYstem with evoluTionarY Learning",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
     author="dNaty Authors",
     url="https://github.com/pedrovergueiro/dNaty",
-    packages=find_packages(exclude=["tests*", "web*"]),
+    packages=find_packages(exclude=["tests*", "web*", "docs*"]),
     python_requires=">=3.10",
     install_requires=[
         "torch>=2.0.0",
@@ -18,10 +18,10 @@ setup(
         "tqdm>=4.65.0",
     ],
     extras_require={
-        "dev": ["matplotlib>=3.7.0", "jupyter"],
+        "dev": ["matplotlib>=3.7.0", "jupyter", "pytest>=8.0.0"],
     },
     classifiers=[
-        "Development Status :: 3 - Alpha",
+        "Development Status :: 4 - Beta",
         "Intended Audience :: Science/Research",
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
         "License :: OSI Approved :: MIT License",

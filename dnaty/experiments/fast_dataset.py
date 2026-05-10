@@ -71,7 +71,7 @@ class FastDataset:
 
         mb_train = self.train_x.element_size() * self.train_x.nelement() / 1e6
         mb_val   = self.val_x.element_size() * self.val_x.nelement() / 1e6
-        print(f"[FastDataset {name}] RAM: train={self.n_train} ({mb_train:.1f}MB), val={len(self.val_x)} ({mb_val:.1f}MB) → {device}")
+        print(f"[FastDataset {name}] RAM: train={self.n_train} ({mb_train:.1f}MB), val={len(self.val_x)} ({mb_val:.1f}MB) on {device}")
 
     def get_train_batch(self, batch_size: int = 512) -> tuple[torch.Tensor, torch.Tensor]:
         """Retorna batch aleatório O(1) — sem DataLoader, sem I/O."""

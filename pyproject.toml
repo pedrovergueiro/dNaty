@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dnaty"
+version = "5.1.0"
+description = "Dynamic Neuro-Adaptive sYstem with evoluTionarY Learning"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "dNaty Authors" }]
+dependencies = [
+  "torch>=2.0.0",
+  "torchvision>=0.15.0",
+  "numpy>=1.24.0",
+  "scipy>=1.10.0",
+  "matplotlib>=3.7.0",
+  "tqdm>=4.65.0"
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0.0", "jupyter"]
+
+[tool.setuptools.packages.find]
+exclude = ["tests*", "web*", "docs*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
