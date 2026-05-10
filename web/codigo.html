@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>dNaty — Estrutura do Código</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;font-size:15px;line-height:1.7;color:#1a1a2e;background:#f8f9ff;max-width:960px;margin:0 auto;padding:20px 24px}
+h1{font-size:1.9rem;color:#1565c0;margin:20px 0 8px;border-bottom:3px solid #1565c0;padding-bottom:8px}
+h2{font-size:1.3rem;color:#0d47a1;margin:26px 0 8px;padding-left:12px;border-left:4px solid #42a5f5}
+h3{font-size:1.05rem;color:#1565c0;margin:16px 0 5px}
+p{margin-bottom:10px}
+.box{background:#fff;border:1px solid #dde;border-radius:10px;padding:16px 20px;margin:12px 0;box-shadow:0 2px 5px rgba(0,0,0,0.05)}
+.tip{background:#e3f2fd;border-left:4px solid #1565c0;padding:10px 14px;margin:10px 0;border-radius:0 8px 8px 0}
+code{background:#f0f4ff;padding:2px 6px;border-radius:4px;font-family:Courier New,monospace;font-size:0.88em;color:#1565c0}
+pre{background:#1a1a2e;color:#e8f0fe;padding:14px 18px;border-radius:8px;overflow-x:auto;margin:10px 0;font-size:0.85em;line-height:1.6}
+.file{background:#fff;border:1px solid #c5cae9;border-radius:8px;padding:12px 16px;margin:8px 0;border-left:4px solid #3f51b5}
+.file .name{font-family:Courier New,monospace;font-weight:bold;color:#1565c0;font-size:0.95em}
+.file .desc{color:#555;font-size:0.9em;margin-top:4px}
+.arrow{color:#1565c0;font-weight:bold}
+.flow{display:flex;flex-direction:column;gap:6px;margin:12px 0}
+.flow-step{display:flex;gap:10px;align-items:flex-start;padding:10px 14px;background:#fff;border:1px solid #dde;border-radius:6px}
+.flow-num{background:#1565c0;color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:0.85em;flex-shrink:0}
+table{width:100%;border-collapse:collapse;margin:10px 0;font-size:0.88em}
+th{background:#1565c0;color:#fff;padding:7px 10px;text-align:left}
+td{border:1px solid #dde;padding:6px 10px}
+tr:nth-child(even){background:#f5f7ff}
+.nav{background:#1565c0;color:#fff;padding:10px 18px;border-radius:8px;margin-bottom:20px;display:flex;gap:14px;flex-wrap:wrap}
+.nav a{color:#fff;text-decoration:none;font-size:0.88em;opacity:0.85}
+.nav a:hover{opacity:1;text-decoration:underline}
+</style>
+</head>
+<body>
+<div class="nav">
+  <strong>dNaty Código</strong>
+  <a href="#estrutura">Estrutura</a>
+  <a href="#fluxo">Fluxo</a>
+  <a href="#core">Core</a>
+  <a href="#evolution">Evolution</a>
+  <a href="#training">Training</a>
+  <a href="#experiments">Experiments</a>
+  <a href="#metodos">Métodos</a>
+  <a href="guia.html">← Guia</a>
+  <a href="index.html">← Site</a>
+</div>
+
+<h1>🗂️ Estrutura do Código dNaty</h1>
+
+<div class="box">
+<p>O dNaty é organizado em módulos. Cada pasta tem uma responsabilidade clara. Aqui você vai entender o que cada arquivo faz, o que chama o quê, e como o código flui de ponta a ponta.</p>
+</div>
+
+<h2 id="estrutura">📁 Estrutura de Pastas</h2>
+
+<pre>
+dNaty/
+├── dnaty/                    ← Biblioteca principal
+│   ├── core/                 ← Blocos fundamentais
+│   │   ├── arch.py           ← DynamicMLP (rede neural mutável)
+│   │   ├── arch_cnn.py       ← DynamicCNN (rede convolucional mutável)
+│   │   ├── individual.py     ← Individual (modelo + memória)
+│   │   └── memory.py         ← EpisodicMemory (memória episódica)
+│   ├── operators/            ← Os 10 operadores estruturais
+│   │   ├── mutations.py      ← 10 operadores para MLP
+│   │   └── mutations_cnn.py  ← Operadores para CNN
+│   ├── evolution/            ← Algoritmo evolutivo
+│   │   ├── evolver.py        ← DnatyEvolver (loop principal)
+│   │   └── selection.py      ← NSGA-II (seleção multiobjetivo)
+│   ├── training/             ← Treino local
+│   │   └── local_train.py    ← local_train() + evaluate()
+│   ├── experiments/          ← Experimentos prontos
+│   │   ├── fast_dataset.py   ← FastDataset (dados em RAM)
+│   │   ├── exp1_mnist.py     ← Experimento MNIST + FashionMNIST
+│   │   ├── exp2_cifar.py     ← Experimento CIFAR-10
+│   │   ├── exp3_cl.py        ← Experimento Continual Learning
+│   │   ├── baselines.py      ← MLP fixo, GA puro, EWC
+│   │   └── data_utils.py     ← DataLoaders padrão
+│   └── analysis/             ← Análise de resultados
+│       ├── stats.py          ← Teste-t, Cohen's d
+│       ├── cl_metrics.py     ← BWT, FWT, FM
+│       └── report.py         ← Gera DNATY_RESULTS.md
+├── results/                  ← JSONs com resultados
+├── web/                      ← Site
+├── dnaty_colab.ipynb         ← Notebook Google Colab
+├── dnaty_paper.html          ← Artigo científico
+└── README.md
+</pre>
+
+<h2 id="fluxo">🔄 Fluxo Completo de Execução</h2>
+
+<div class="tip">Este é o caminho que o código percorre quando você roda um experimento. Cada seta mostra quem chama quem.</div>
+
+<div class="flow">
+  <div class="flow-step"><div class="flow-num">1</div><div><strong>exp1_mnist.py → main()</strong><br>Ponto de entrada. Define configurações (seeds, gerações, população). Chama <code>run_dnaty_seed()</code> para cada seed.</div></div>
+  <div class="flow-step"><div class="flow-num">2</div><div><strong>run_dnaty_seed() → FastDataset()</strong><br>Carrega o dataset MNIST inteiro na RAM. 60K imagens viram tensores PyTorch. Zero I/O depois disso.</div></div>
+  <div class="flow-step"><div class="flow-num">3</div><div><strong>run_dnaty_seed() → DnatyEvolver()</strong><br>Cria o evolver com os hiperparâmetros. Inicializa a população de 12 redes e a memória episódica compartilhada.</div></div>
+  <div class="flow-step"><div class="flow-num">4</div><div><strong>DnatyEvolver.run() → loop de gerações</strong><br>Para cada geração: mutação → treino → avaliação → seleção → atualiza memória. Repete até early stop ou G gerações.</div></div>
+  <div class="flow-step"><div class="flow-num">5</div><div><strong>_mutate_population() → apply_operator()</strong><br>Para cada indivíduo, consulta a memória para escolher o operador mais provável. Aplica o operador na rede.</div></div>
+  <div class="flow-step"><div class="flow-num">6</div><div><strong>_train_parallel() → local_train()</strong><br>Treina cada indivíduo mutado por T_local epochs. Retorna (loss_antes, loss_depois, grad_norm).</div></div>
+  <div class="flow-step"><div class="flow-num">7</div><div><strong>_eval_population() → evaluate()</strong><br>Avalia todos os indivíduos no dataset de validação. Usa torch.inference_mode() para máxima velocidade.</div></div>
+  <div class="flow-step"><div class="flow-num">8</div><div><strong>nsga2_select() → fronts de Pareto</strong><br>Seleciona os N melhores indivíduos balanceando acurácia, número de parâmetros e sharpness.</div></div>
+  <div class="flow-step"><div class="flow-num">9</div><div><strong>_update_memory() → EpisodicMemory.update()</strong><br>Para cada indivíduo que melhorou em relação ao pai, registra a experiência na memória.</div></div>
+  <div class="flow-step"><div class="flow-num">10</div><div><strong>Salva resultados → results/exp1_results.json</strong><br>JSON com acurácia, params, histórico de convergência, validação do Teorema 1.</div></div>
+</div>
+
+<h2 id="core">🧱 dnaty/core/ — Os Blocos Fundamentais</h2>
+
+<h3>arch.py — DynamicMLP</h3>
+<div class="box">
+<p>A rede neural que muda de forma. Diferente de um MLP normal que tem tamanho fixo, o DynamicMLP pode crescer e encolher.</p>
+<pre>
+class DynamicMLP(nn.Module):
+    def __init__(self, layer_sizes, activations, n_classes):
+        # layer_sizes = [784, 128, 64]  ← tamanhos das camadas
+        # activations = ['relu', 'relu'] ← ativações
+        # n_classes = 10                 ← saída
+        self._build()  # constrói a rede com BatchNorm
+
+    def _build(self):
+        # Para cada camada: Linear → BatchNorm → Activation
+        # BatchNorm estabiliza o treino (adicionado na v5)
+        layers.append(nn.Linear(in, out))
+        layers.append(nn.BatchNorm1d(out))  # ← v5
+        layers.append(ACTIVATIONS[act]())
+
+    def forward(self, x):
+        # Passa pelos blocos Linear+BN+Act
+        # Aplica skip connections se existirem
+        # Retorna logits (antes do softmax)
+</pre>
+<div class="tip">O índice mudou na v5: antes era idx+=2 (Linear+Act), agora é idx+=3 (Linear+BN+Act). Isso afeta os operadores que acessam camadas por índice.</div>
+</div>
+
+<h3>memory.py — EpisodicMemory</h3>
+<div class="box">
+<p>O "caderno de anotações" do dNaty. Guarda quais operadores funcionaram e com que intensidade.</p>
+<pre>
+class EpisodicMemory:
+    def __init__(self, max_size=500, decay_gamma=0.99):
+        self._scores = {}  # scores por operador — O(1) por update
+
+    def update(self, exp: Experience):
+        # Decai todos os scores por gamma (memória esquece gradualmente)
+        for op in self._scores:
+            self._scores[op] *= self.gamma
+        # Adiciona o impacto da nova experiência
+        if exp.impact > 0:
+            self._scores[exp.operator] += exp.impact
+
+    def query_mutation_probs(self, operators):
+        # Retorna distribuição softmax sobre os operadores
+        # Operadores com mais impacto acumulado têm maior probabilidade
+        vals = [self._scores.get(op, 0.0) for op in operators]
+        return softmax(vals)
+
+class Experience:
+    @property
+    def impact(self):
+        # Só conta se a mutação MELHOROU o modelo (não-circular)
+        if self.delta_loss >= 0: return 0.0
+        return abs(self.delta_loss) * self.gradient_norm
+</pre>
+</div>
+
+<h3>individual.py — Individual</h3>
+<div class="box">
+<p>Um "indivíduo" na população. Contém o modelo (rede neural) + sua memória episódica própria.</p>
+<pre>
+class Individual:
+    def __init__(self, model, memory=None):
+        self.model   = model    # DynamicMLP ou DynamicCNN
+        self.memory  = memory   # EpisodicMemory própria
+        self.acc     = 0.0      # acurácia atual
+        self.fitness = (0,0,0)  # (acc, -params, -sharpness)
+        self.last_op = 'init'   # último operador aplicado
+
+    def clone(self):
+        # Cria cópia profunda — necessário antes de mutar
+        return Individual(deepcopy(self.model), deepcopy(self.memory))
+</pre>
+</div>
+
+<h2 id="evolution">⚙️ dnaty/evolution/ — O Motor Evolutivo</h2>
+
+<h3>evolver.py — DnatyEvolver</h3>
+<div class="box">
+<p>O coração do dNaty. Implementa o Algorithm 1 completo com 6 fases por geração.</p>
+<pre>
+class DnatyEvolver:
+    def run(self, train_loader, val_loader,
+            early_stop_patience=8, early_stop_min_delta=1e-4):
+
+        self._init_population()  # cria N indivíduos iniciais
+        fitnesses = self._eval_population(population, val_loader)
+
+        for gen in range(1, n_generations+1):
+
+            # FASE 1: Mutação guiada pela memória
+            prev_accs = [ind.acc for ind in population]  # acurácia dos pais
+            mutated = self._mutate_population(population)
+            # → consulta memória → escolhe operador → aplica → retorna novo ind
+
+            # FASE 2: Treino local (Lema 2)
+            for ind in mutated:
+                lb, la, gn = local_train(ind, train_loader, ...)
+                # lb = loss antes, la = loss depois, gn = grad_norm
+            delta_grad = mean(lb - la)  # sempre positivo
+
+            # FASE 3: Avaliação multiobjetivo
+            mut_fitnesses = self._eval_population(mutated, val_loader)
+
+            # FASE 4: Seleção NSGA-II
+            combined = population + mutated
+            population = nsga2_select(combined, fitnesses, n_pop)
+
+            # FASE 5: Atualiza memória (Lema 1)
+            delta_mem = self._update_memory(mutated, prev_accs, grad_norms)
+            # → compara cada mutado com seu PAI (não com o melhor global)
+            # → se melhorou: registra Experience na memória compartilhada
+
+            # Early stopping
+            if best_acc não melhora em patience gerações: break
+</pre>
+</div>
+
+<h3>selection.py — NSGA-II</h3>
+<div class="box">
+<p>Seleciona os melhores indivíduos balanceando múltiplos objetivos ao mesmo tempo.</p>
+<pre>
+def nsga2_select(population, fitnesses, n_select):
+    # fitnesses = lista de tuplas (acc, -params, -sharpness)
+    # Maior = melhor em todos os objetivos
+
+    fronts = fast_non_dominated_sort(fitnesses)
+    # Frente 1: ninguém domina esses indivíduos
+    # Frente 2: só a frente 1 domina esses
+    # etc.
+
+    # Preenche com as melhores frentes
+    # Se a última frente não cabe toda, usa crowding distance
+    # (prefere indivíduos mais "espalhados" no espaço de objetivos)
+
+def fast_non_dominated_sort(fitnesses):
+    # Vetorizado com numpy broadcasting — O(n²) mas sem loops Python
+    F = np.array(fitnesses)
+    ge = F[:, None, :] >= F[None, :, :]  # i >= j em cada objetivo
+    gt = F[:, None, :] >  F[None, :, :]  # i >  j em algum objetivo
+    dominates = ge.all(axis=2) & gt.any(axis=2)
+    # dominates[i,j] = True se i domina j
+</pre>
+</div>
+
+<h2 id="training">🏋️ dnaty/training/ — Treino Local</h2>
+
+<h3>local_train.py</h3>
+<div class="box">
+<p>Treina um indivíduo por T_local epochs. Suporta FastDataset (RAM) e DataLoader padrão.</p>
+<pre>
+def local_train(ind, loader, n_epochs=4, lr=2e-3, batch_size=512):
+    model = ind.model.to(device)
+    optimizer = Adam(model.parameters(), lr=lr, weight_decay=1e-4)
+    criterion = CrossEntropyLoss(label_smoothing=0.05)  # v5
+    scheduler = CosineAnnealingLR(optimizer, T_max=n_epochs)  # v5
+
+    # Custo estrutural calculado UMA vez (não por batch)
+    cost_penalty = lambda1 * n_params * 1e-5
+
+    for epoch in range(n_epochs):
+        # FastDataset: múltiplos batches por epoch (117 batches para 60K)
+        n_batches = loader.n_train // batch_size
+        for _ in range(n_batches):
+            xb, yb = loader.get_train_batch(batch_size)
+            loss = criterion(model(xb), yb) + cost_penalty
+            loss.backward()
+            optimizer.step()
+        scheduler.step()  # LR decai com cosine
+
+    return loss_first, loss_last, mean_grad_norm
+
+@torch.inference_mode()  # desativa autograd — 30% mais rápido
+def evaluate(ind, loader, device):
+    # Avalia em chunks para não explodir VRAM
+    # Retorna (accuracy, loss)
+</pre>
+<div class="tip">
+<strong>Por que label_smoothing=0.05?</strong> Em vez de treinar para probabilidade 1.0 na classe correta, treina para 0.95. Isso reduz overfit e melhora generalização em ~0.3pp.
+<br><br>
+<strong>Por que CosineAnnealingLR?</strong> LR começa alto (exploração) e cai suavemente até lr*0.1 (refinamento). Melhor que LR fixo para convergência.
+</div>
+</div>
+
+<h2 id="experiments">🧪 dnaty/experiments/ — Experimentos</h2>
+
+<h3>fast_dataset.py — FastDataset</h3>
+<div class="box">
+<p>A otimização mais importante da v5. Carrega o dataset inteiro na RAM uma única vez.</p>
+<pre>
+class FastDataset:
+    def __init__(self, name='MNIST', device='cpu', train_subset=None):
+        # Carrega TUDO na memória via DataLoader com batch=len(dataset)
+        loader = DataLoader(dataset, batch_size=len(dataset))
+        x, y = next(iter(loader))  # uma única leitura de disco
+        self.train_x = x.flatten(1).to(device)  # (60000, 784) na RAM
+        self.train_y = y.to(device)
+
+    def get_train_batch(self, batch_size=512):
+        # Indexação direta em tensor — O(1), zero I/O
+        idx = torch.randint(0, self.n_train, (batch_size,))
+        return self.train_x[idx], self.train_y[idx]
+
+    def get_val(self):
+        return self.val_x, self.val_y  # tensor completo, zero cópia
+</pre>
+<p><strong>Resultado:</strong> DataLoader padrão = 2.3s/epoch. FastDataset = 0.08s/epoch. <strong>28× mais rápido.</strong></p>
+</div>
+
+<h3>exp1_mnist.py — Experimento MNIST</h3>
+<div class="box">
+<pre>
+# Configurações principais
+SEEDS = [0, 1, 2]       # 3 seeds para estatística
+N_GENERATIONS = 50      # máximo de gerações (early stop para antes)
+N_POP = 12              # 12 redes na população
+T_LOCAL = 4             # 4 epochs de treino local por geração
+LR = 2e-3               # taxa de aprendizado
+BATCH_SIZE = 512        # tamanho do batch
+
+def main():
+    for dataset in ['MNIST', 'FashionMNIST']:
+        for seed in SEEDS:
+            ds = FastDataset(dataset, device)  # carrega na RAM
+            ev = DnatyEvolver(n_pop=N_POP, ...)
+            best, history = ev.run(ds, ds, early_stop_patience=8)
+            # Salva acurácia, params, histórico de δ_grad e δ_mem
+
+        # Roda MLP baseline com 60K amostras (vantagem ao baseline)
+        acc_mlp = train_fixed_mlp(train_loader_60k, ...)
+
+        # Análise estatística
+        t_stat, p_val, cohen_d = paired_ttest(dnaty_accs, mlp_accs)
+</pre>
+</div>
+
+<h3>exp3_cl.py — Continual Learning</h3>
+<div class="box">
+<pre>
+class FastTaskDataset:
+    # Carrega uma task do Split-MNIST em RAM
+    # task_id=0 → dígitos 0,1
+    # task_id=1 → dígitos 2,3
+    # etc.
+
+def run_dnaty_cl_seed(seed, device):
+    task_datasets = [FastTaskDataset(t) for t in range(5)]
+    replay_x, replay_y = [], []  # buffer de replay
+
+    for t in range(5):  # 5 tarefas sequenciais
+        # Treina na tarefa atual
+        for epoch in range(N_EPOCHS_CL):
+            loss = criterion(model(xb), yb)
+            # Experience Replay: treina também em amostras antigas
+            if replay_x:
+                loss += criterion(model(replay_samples), replay_labels)
+            loss.backward()
+
+        # Guarda 200 amostras desta tarefa para replay futuro
+        replay_x.append(task_x[:200])
+
+        # Avalia em TODAS as tarefas anteriores
+        for j in range(t+1):
+            R[t, j] = eval_task(model, task_datasets[j])
+
+    # R[i,j] = acurácia na tarefa j após treinar até tarefa i
+    # BWT = média de R[T,j] - R[j,j] para j < T
+    # BWT próximo de 0 = não esqueceu
+</pre>
+</div>
+
+<h2 id="metodos">📋 Tabela de Métodos Principais</h2>
+
+<table>
+<tr><th>Método</th><th>Arquivo</th><th>O que faz</th><th>Retorna</th></tr>
+<tr><td><code>DnatyEvolver.run()</code></td><td>evolver.py</td><td>Loop principal: mutação → treino → seleção → memória</td><td>(best_ind, history)</td></tr>
+<tr><td><code>local_train()</code></td><td>local_train.py</td><td>Treina um indivíduo por T_local epochs com Adam+cosine</td><td>(loss_antes, loss_depois, grad_norm)</td></tr>
+<tr><td><code>evaluate()</code></td><td>local_train.py</td><td>Avalia acurácia no dataset de validação</td><td>(accuracy, loss)</td></tr>
+<tr><td><code>apply_operator()</code></td><td>mutations.py</td><td>Aplica um dos 10 operadores estruturais</td><td>(new_individual, success)</td></tr>
+<tr><td><code>nsga2_select()</code></td><td>selection.py</td><td>Seleciona N melhores por dominância de Pareto</td><td>(population, fitnesses)</td></tr>
+<tr><td><code>EpisodicMemory.update()</code></td><td>memory.py</td><td>Registra experiência e decai scores antigos</td><td>None</td></tr>
+<tr><td><code>EpisodicMemory.query_mutation_probs()</code></td><td>memory.py</td><td>Retorna distribuição softmax sobre operadores</td><td>dict{op: prob}</td></tr>
+<tr><td><code>FastDataset.get_train_batch()</code></td><td>fast_dataset.py</td><td>Retorna batch aleatório direto da RAM</td><td>(x_tensor, y_tensor)</td></tr>
+<tr><td><code>compute_cl_metrics()</code></td><td>cl_metrics.py</td><td>Calcula BWT, FWT, FM a partir da matriz R</td><td>dict{BWT, FWT, FM}</td></tr>
+<tr><td><code>paired_ttest()</code></td><td>stats.py</td><td>Teste-t pareado + Cohen's d</td><td>(t, p, d)</td></tr>
+</table>
+
+<h2>🔗 Diagrama de Dependências</h2>
+<div class="box">
+<pre>
+exp1_mnist.py
+    ├── FastDataset          (fast_dataset.py)
+    ├── DnatyEvolver         (evolver.py)
+    │       ├── Individual   (individual.py)
+    │       │       ├── DynamicMLP    (arch.py)
+    │       │       └── EpisodicMemory (memory.py)
+    │       ├── apply_operator (mutations.py)
+    │       ├── local_train  (local_train.py)
+    │       ├── evaluate     (local_train.py)
+    │       └── nsga2_select (selection.py)
+    ├── train_fixed_mlp      (baselines.py)
+    └── paired_ttest         (stats.py)
+
+exp3_cl.py
+    ├── FastTaskDataset      (exp3_cl.py mesmo)
+    ├── DynamicMLP           (arch.py)
+    ├── compute_cl_metrics   (cl_metrics.py)
+    └── paired_ttest         (stats.py)
+</pre>
+</div>
+
+<hr style="margin:28px 0;border:none;border-top:1px solid #dde">
+<p style="text-align:center;color:#888;font-size:0.85em">
+  dNaty v5 · Pedro Vergueiro · 2026 ·
+  <a href="guia.html">Guia</a> ·
+  <a href="index.html">Site</a> ·
+  <a href="https://github.com/pedrovergueiro/dNaty" target="_blank">GitHub</a>
+</p>
+</body>
+</html>
