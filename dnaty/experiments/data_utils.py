@@ -8,7 +8,13 @@ import torchvision
 import torchvision.transforms as T
 
 
-def get_mnist(batch_size: int = 256, data_dir: str = "./data",
+def _num_workers() -> int:
+    """2 workers no Colab/Linux, 0 no Windows (evita erros de multiprocessing)."""
+    import platform
+    return 2 if platform.system() != "Windows" else 0
+
+
+def get_mnist(batch_size: int = 512, data_dir: str = "./data",
               train_subset: int | None = None, val_subset: int | None = None) -> tuple[DataLoader, DataLoader]:
     transform = T.Compose([T.ToTensor(), T.Normalize((0.1307,), (0.3081,))])
     train = torchvision.datasets.MNIST(data_dir, train=True, download=True, transform=transform)
@@ -17,13 +23,14 @@ def get_mnist(batch_size: int = 256, data_dir: str = "./data",
         train = Subset(train, list(range(min(train_subset, len(train)))))
     if val_subset:
         test = Subset(test, list(range(min(val_subset, len(test)))))
+    nw = _num_workers()
     return (
-        DataLoader(train, batch_size=batch_size, shuffle=True, num_workers=0),
-        DataLoader(test, batch_size=512, shuffle=False, num_workers=0),
+        DataLoader(train, batch_size=batch_size, shuffle=True, num_workers=nw, pin_memory=True),
+        DataLoader(test, batch_size=1024, shuffle=False, num_workers=nw, pin_memory=True),
     )
 
 
-def get_fashion_mnist(batch_size: int = 256, data_dir: str = "./data",
+def get_fashion_mnist(batch_size: int = 512, data_dir: str = "./data",
                       train_subset: int | None = None, val_subset: int | None = None) -> tuple[DataLoader, DataLoader]:
     transform = T.Compose([T.ToTensor(), T.Normalize((0.2860,), (0.3530,))])
     train = torchvision.datasets.FashionMNIST(data_dir, train=True, download=True, transform=transform)
@@ -32,9 +39,10 @@ def get_fashion_mnist(batch_size: int = 256, data_dir: str = "./data",
         train = Subset(train, list(range(min(train_subset, len(train)))))
     if val_subset:
         test = Subset(test, list(range(min(val_subset, len(test)))))
+    nw = _num_workers()
     return (
-        DataLoader(train, batch_size=batch_size, shuffle=True, num_workers=0),
-        DataLoader(test, batch_size=512, shuffle=False, num_workers=0),
+        DataLoader(train, batch_size=batch_size, shuffle=True, num_workers=nw, pin_memory=True),
+        DataLoader(test, batch_size=1024, shuffle=False, num_workers=nw, pin_memory=True),
     )
 
 
@@ -63,7 +71,8 @@ def get_split_mnist(
     test_sub = filter_dataset(test_full)
     if train_subset:
         train_sub = Subset(train_sub, list(range(min(train_subset, len(train_sub)))))
+    nw = _num_workers()
     return (
-        DataLoader(train_sub, batch_size=batch_size, shuffle=True, num_workers=0),
-        DataLoader(test_sub, batch_size=512, shuffle=False, num_workers=0),
+        DataLoader(train_sub, batch_size=batch_size, shuffle=True, num_workers=nw, pin_memory=True),
+        DataLoader(test_sub, batch_size=1024, shuffle=False, num_workers=nw, pin_memory=True),
     )

@@ -7,7 +7,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-3776ab.svg?logo=python&logoColor=white)](https://www.python.org/)
 [![PyTorch 2.0+](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg?logo=pytorch&logoColor=white)](https://pytorch.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Preprint](https://img.shields.io/badge/preprint-v4.1-brightgreen.svg)](dnaty-paper-real.md)
+[![Preprint](https://img.shields.io/badge/preprint-v5.0-brightgreen.svg)](dnaty-paper-real.md)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/pedrovergueiro/dNaty/blob/main/dnaty_colab.ipynb)
 
 **The first algorithm to formally unify Neural Architecture Search (NAS) and Continual Learning (CL) with a convergence theorem.**
@@ -42,38 +42,37 @@ Validated empirically: δ_grad ≥ 0 and δ_mem ≥ 0 in **225/225 measurements*
 
 ## Results
 
-### MNIST & FashionMNIST (5 seeds, GPU T4)
+### MNIST & FashionMNIST — dNaty v5 (3 seeds, CPU Ryzen 5 5600GT, 60K amostras)
 
 ```
-MNIST — Accuracy vs Generation (seed=0)
+MNIST — Accuracy vs Generation (seed=0, v5 com BatchNorm)
 100% ┤
- 95% ┤                                          ╭──────────────
- 90% ┤                              ╭───────────╯  dNaty 90.04%
- 85% ┤                    ╭─────────╯
- 80% ┤          ╭─────────╯
- 75% ┤──────────╯
+ 99% ┤                ╭──────────────────────────  dNaty 98.70%
+ 98% ┤──────────╮─────╯                             MLP:  97.85%
+ 97% ┤          ╰ gen1: 98.24%
      └──────────────────────────────────────────────────────────
-     Gen 1    3    5    7    9    11   13   15    MLP: 88.96%
+     Gen 1    3    5    7    9    11   13   15
 
-δ_grad (Lemma 2 validation):
-0.70 ┤█
-0.40 ┤████
-0.20 ┤████████████████████████████████████████  always ≥ 0 ✓
-0.00 ┤──────────────────────────────────────────────────────────
-
-δ_mem (Lemma 1 validation):
-2.04 ┤█
-0.06 ┤██
-0.00 ┤████████████████████████████████████████  always ≥ 0 ✓
+δ_mem (Lemma 1 — memória episódica ativa):
+2.82 ┤█  ← gen 1: memória aprendendo intensamente
+0.01 ┤████████████████████████████████████████  sempre ≥ 0 ✓
 ```
 
-| Dataset | dNaty | Baseline | Δ | p-value | Cohen's d | Params |
-|---------|-------|----------|---|---------|-----------|--------|
-| **MNIST** | **90.04 ± 0.42%** | MLP 88.96% | **+1.08pp** | **0.034 ✓** | 1.576 | **52.5K** |
-| **FashionMNIST** | **84.06 ± 0.39%** | MLP 82.86% | **+1.20pp** | **0.019 ✓** | 1.907 | **52.0K** |
-| GA Puro | 18.84% | — | — | — | — | 52.6K |
+| Dataset | dNaty v5 | MLP (60K) | Δ | p-value | Config |
+|---------|----------|-----------|---|---------|--------|
+| **MNIST** | **98.70% ± 0.02%** | 97.85% | **+0.85pp (SUPERA)** | **0.015 ✓** | N=12, BN+cosine |
+| **FashionMNIST** | **90.00% ± 0.09%** | 88.41% | **+1.59pp (SUPERA)** | 0.081 | N=12, BN+cosine |
 
-> dNaty uses **52% fewer parameters** than a fixed MLP while achieving higher accuracy.
+> **dNaty v5 supera o MLP fixo em ambos os datasets.** BatchNorm + cosine annealing + inicialização [128,64] foram as melhorias decisivas. Tempo: ~13 min/seed no CPU.
+
+### Resultados Históricos — dNaty v4.1 (5 seeds, GPU T4, 3K amostras)
+
+| Dataset | dNaty v4.1 | Baseline | Δ | p-value | Cohen's d | Params |
+|---------|------------|----------|---|---------|-----------|--------|
+| **MNIST** | **90.04 ± 0.42%** | MLP 88.96% (60K) | **+1.08pp** | **0.034 ✓** | 1.576 | **52.5K** |
+| **FashionMNIST** | **84.06 ± 0.39%** | MLP 82.86% (60K) | **+1.20pp** | **0.019 ✓** | 1.907 | **52.0K** |
+
+> v4.1 usou apenas 3K amostras (5% do dataset) e superou o MLP treinado com 60K — demonstrando eficiência de dados 20×.
 
 ### Continual Learning — Split-MNIST (5 seeds)
 

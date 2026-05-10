@@ -35,10 +35,10 @@ def _rebuild_from_sizes(ind: Individual, new_sizes: list[int], new_acts: list[st
 
     new_model = DynamicMLP(new_sizes, new_acts, old_model.n_classes)
     # Copiar pesos das camadas que existem em ambos
-    old_layers = [(old_model.net[i], old_model.net[i + 1])
-                  for i in range(0, len(old_model.net) - 1, 2)]
-    new_layers = [(new_model.net[i], new_model.net[i + 1])
-                  for i in range(0, len(new_model.net) - 1, 2)]
+    old_layers = [(old_model.net[i], old_model.net[i + 2])
+                  for i in range(0, len(old_model.net) - 1, 3)]
+    new_layers = [(new_model.net[i], new_model.net[i + 2])
+                  for i in range(0, len(new_model.net) - 1, 3)]
     for (old_lin, _), (new_lin, _) in zip(old_layers, new_layers):
         min_out = min(old_lin.out_features, new_lin.out_features)
         min_in = min(old_lin.in_features, new_lin.in_features)
@@ -198,11 +198,13 @@ def duplicate_module(ind: Individual, noise_eps: float = 0.01) -> tuple[Individu
     n_hidden = len(new_sizes) - 2
     new_acts = (acts + ["relu"] * 10)[:n_hidden]
     new_ind = _rebuild_from_sizes(ind, new_sizes, new_acts)
-    net_idx = (layer_idx - 1) * 2
+    # Encontra a primeira camada Linear no índice correto (passo 3: Linear+BN+Act)
+    net_idx = (layer_idx - 1) * 3  # cada bloco tem 3 módulos agora
     if 0 <= net_idx < len(new_ind.model.net) - 1:
-        with torch.no_grad():
-            lin = new_ind.model.net[net_idx]
-            lin.weight.data += torch.randn_like(lin.weight) * noise_eps
+        module = new_ind.model.net[net_idx]
+        if isinstance(module, torch.nn.Linear):
+            with torch.no_grad():
+                module.weight.data += torch.randn_like(module.weight) * noise_eps
     new_ind.last_op = "duplicate_module"
     return new_ind, True
 
@@ -245,6 +247,8 @@ OPERATOR_FNS = {
     "add_conv_block": add_conv_block,
     "depthwise_sep": depthwise_sep,
 }
+
+OPERATORS = list(OPERATOR_FNS.keys())
 
 
 def apply_operator(ind: Individual, op: str) -> tuple[Individual, bool]:

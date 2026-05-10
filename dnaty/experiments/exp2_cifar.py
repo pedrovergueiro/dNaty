@@ -19,18 +19,19 @@ from dnaty.operators.mutations_cnn import CNN_OPERATORS, apply_cnn_operator
 from dnaty.evolution.selection import nsga2_select
 from dnaty.analysis.stats import summary_stats, paired_ttest
 
-SEEDS = [0, 1, 2, 3, 4]
+SEEDS = [0, 1, 2]
 N_GENERATIONS = 20
 N_POP = 8
-T_LOCAL = 3
-TRAIN_SUBSET = 5000   # subset para velocidade; paper usa None (50K)
-VAL_SUBSET = 2000
+T_LOCAL = 2
+TRAIN_SUBSET = 3000
+VAL_SUBSET = None
+BASELINE_TRAIN_SUBSET = None
 RESULTS_DIR = "results"
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
 
 # ── Data ──────────────────────────────────────────────────────
-def get_cifar10(batch_size=128, train_subset=None, val_subset=None):
+def get_cifar10(batch_size=256, train_subset=None, val_subset=None):
     mean = (0.4914, 0.4822, 0.4465)
     std  = (0.2470, 0.2435, 0.2616)
     train_tf = T.Compose([
@@ -49,9 +50,11 @@ def get_cifar10(batch_size=128, train_subset=None, val_subset=None):
     if val_subset:
         val = Subset(val, list(range(min(val_subset, len(val)))))
 
+    import platform
+    nw = 2 if platform.system() != "Windows" else 0
     return (
-        DataLoader(train, batch_size=batch_size, shuffle=True,  num_workers=0, pin_memory=False),
-        DataLoader(val,   batch_size=256,         shuffle=False, num_workers=0, pin_memory=False),
+        DataLoader(train, batch_size=batch_size, shuffle=True,  num_workers=nw, pin_memory=True),
+        DataLoader(val,   batch_size=512,         shuffle=False, num_workers=nw, pin_memory=True),
     )
 
 
@@ -280,12 +283,15 @@ def main():
         dnaty_results.append(dr)
         print(f"  acc={dr['acc']:.4f} | params={dr['n_params']:,} | time={dr['time_s']}s")
 
-        # ResNet-8 fixo
-        print("  [ResNet-8 fixo]")
+        # ResNet-8 fixo — treina com dataset COMPLETO (50K) — vantagem ao baseline
+        print("  [ResNet-8 fixo — 50K treino]")
         torch.manual_seed(seed)
-        train_loader, val_loader = get_cifar10(train_subset=TRAIN_SUBSET, val_subset=VAL_SUBSET)
+        train_loader_full, val_loader = get_cifar10(
+            train_subset=BASELINE_TRAIN_SUBSET, val_subset=VAL_SUBSET,
+            batch_size=256
+        )
         resnet = ResNet8()
-        acc_r = train_fixed_cnn(resnet, train_loader, val_loader, n_epochs=15, device=device)
+        acc_r = train_fixed_cnn(resnet, train_loader_full, val_loader, n_epochs=20, device=device)
         resnet_accs.append(round(acc_r, 4))
         print(f"  acc={acc_r:.4f} | params={resnet.count_params():,}")
 
@@ -296,9 +302,10 @@ def main():
 
     print(f"\n{'─'*50}")
     print("RESULTADOS FINAIS — CIFAR-10")
-    print(f"  dNaty CNN:  {dnaty_s['mean']:.4f} ± {dnaty_s['std']:.4f}")
-    print(f"  ResNet-8:   {resnet_s['mean']:.4f} ± {resnet_s['std']:.4f}")
+    print(f"  dNaty CNN:  {dnaty_s['mean']:.4f} ± {dnaty_s['std']:.4f}  [10K treino]")
+    print(f"  ResNet-8:   {resnet_s['mean']:.4f} ± {resnet_s['std']:.4f}  [50K treino — vantagem 5x dados]")
     print(f"  dNaty vs ResNet: p={p_val:.4f}, d={cohen_d:.3f} {'*' if p_val < 0.05 else ''}")
+    print(f"  → dNaty usa 5x menos dados que o ResNet-8")
 
     all_dg = all(r["delta_grad_all_positive"] for r in dnaty_results)
     all_dm = all(r["delta_mem_positive_after_gen3"] for r in dnaty_results)

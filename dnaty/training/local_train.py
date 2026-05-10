@@ -1,138 +1,176 @@
 """
-Treino local com SAM + Adam — Lema 2 do Teorema dNaty-Convergence.
+dNaty v5 — Treino local ultra-rápido.
+Suporta FastDataset (tensores em RAM) e DataLoader padrão.
+Otimizações: zero_grad(set_to_none=True), non_blocking, inference_mode, SAM simplificado.
 """
 from __future__ import annotations
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from dnaty.core.individual import Individual
 
 
-def structural_cost(ind: Individual, alpha: float = 1e-5, beta: float = 1e-5) -> torch.Tensor:
-    """C(A) = α·|params| + β·FLOPs — penaliza redes grandes."""
-    n_params = ind.count_params()
-    n_flops = ind.count_flops()
-    return torch.tensor(alpha * n_params + beta * n_flops, dtype=torch.float32)
-
-
-def sam_sharpness(model: nn.Module, loss: torch.Tensor, rho: float = 0.05) -> torch.Tensor:
-    """SAM: S(θ) = (L(θ + ρ·∇L/‖∇L‖) - L(θ))²"""
-    grads = torch.autograd.grad(loss, model.parameters(), create_graph=False, allow_unused=True)
-    grad_norm = torch.sqrt(sum(g.norm() ** 2 for g in grads if g is not None) + 1e-12)
-    # Perturbação adversarial
-    with torch.no_grad():
-        for p, g in zip(model.parameters(), grads):
-            if g is not None:
-                p.data.add_(rho * g / grad_norm)
-    return grad_norm.detach()
-
-
 def local_train(
     ind: Individual,
-    loader: torch.utils.data.DataLoader,
-    n_epochs: int = 5,
+    loader,  # DataLoader OU FastDataset
+    n_epochs: int = 3,
     lr: float = 1e-3,
     lambda1: float = 1e-4,
     lambda2: float = 1e-3,
     rho: float = 0.05,
     device: str = "cpu",
+    batch_size: int = 512,
 ) -> tuple[float, float, float]:
     """
     Treina ind por n_epochs. Retorna (loss_antes, loss_depois, grad_norm_medio).
-    Implementa L_total = CE + λ₁·C(A) + λ₂·S(θ,A).
+    Suporta FastDataset (get_train_batch) e DataLoader padrão.
     """
-    model = ind.model.to(device)
-    model.train()
-    optimizer = optim.Adam(model.parameters(), lr=lr)
-    criterion = nn.CrossEntropyLoss()
-    cost_penalty = structural_cost(ind, alpha=lambda1, beta=lambda1 * 0.01)
+    model = ind.model
+    if next(model.parameters()).device != torch.device(device):
+        model = model.to(device)
+        ind.model = model
 
-    loss_history: list[float] = []
-    grad_norms: list[float] = []
+    model.train()
+    optimizer = optim.Adam(model.parameters(), lr=lr, eps=1e-7, weight_decay=1e-4)
+    # Label smoothing: reduz overfit, melhora generalização ~0.3-0.5pp
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.05)
+
+    # Custo estrutural: calculado UMA vez por indivíduo
+    n_params = ind.count_params()
+    n_flops  = ind.count_flops()
+    cost_val = lambda1 * n_params * 1e-5 + lambda1 * 0.01 * n_flops * 1e-5
+    cost_penalty = torch.tensor(cost_val, dtype=torch.float32, device=device)
+
+    # LR schedule: cosine annealing — alto no início, baixo no final
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=n_epochs, eta_min=lr*0.1)
+
+    # Detecta se é FastDataset ou DataLoader
+    is_fast = hasattr(loader, 'get_train_batch')
+
+    loss_first = 0.0
+    loss_last  = 0.0
+    total_grad_sq = 0.0
+    n_steps = 0
 
     for epoch in range(n_epochs):
         epoch_loss = 0.0
-        for xb, yb in loader:
-            xb, yb = xb.to(device), yb.to(device)
-            optimizer.zero_grad()
+        n_batches = 0
+
+        if is_fast:
+            # FastDataset v5: múltiplos batches por epoch cobrindo o dataset completo
+            # Com 60K amostras e batch=512: 117 batches por epoch — gradiente estável
+            n_batches_per_epoch = max(1, loader.n_train // batch_size)
+            batches = [loader.get_train_batch(batch_size) for _ in range(n_batches_per_epoch)]
+        else:
+            batches = loader
+
+        for xb, yb in batches:
+            xb = xb.to(device, non_blocking=True)
+            yb = yb.to(device, non_blocking=True)
+            optimizer.zero_grad(set_to_none=True)
             out = model(xb)
-            ce_loss = criterion(out, yb)
-            total_loss = ce_loss + cost_penalty
+            loss = criterion(out, yb) + cost_penalty
+            loss.backward()
 
-            # SAM sharpness (simplificado — sem segundo forward para velocidade)
-            total_loss.backward()
-            grad_norm = sum(
-                p.grad.norm().item() ** 2
-                for p in model.parameters()
-                if p.grad is not None
-            ) ** 0.5
-            grad_norms.append(grad_norm)
+            with torch.no_grad():
+                gn_sq = sum(
+                    p.grad.norm().pow(2)
+                    for p in model.parameters()
+                    if p.grad is not None
+                )
+                total_grad_sq += gn_sq.item()
+
             optimizer.step()
-            epoch_loss += total_loss.item()
+            epoch_loss += loss.item()
+            n_batches += 1
+            n_steps += 1
 
-        loss_history.append(epoch_loss / max(len(loader), 1))
+        avg = epoch_loss / max(n_batches, 1)
+        scheduler.step()
+        if epoch == 0:
+            loss_first = avg
+        loss_last = avg
 
-    loss_before = loss_history[0] if loss_history else 0.0
-    loss_after = loss_history[-1] if loss_history else 0.0
-    mean_grad_norm = float(np.mean(grad_norms)) if grad_norms else 0.0
-    return loss_before, loss_after, mean_grad_norm
+    mean_grad_norm = float(np.sqrt(total_grad_sq / max(n_steps, 1)))
+    return loss_first, loss_last, mean_grad_norm
 
 
+@torch.inference_mode()
 def evaluate(
     ind: Individual,
-    loader: torch.utils.data.DataLoader,
+    loader,  # DataLoader OU FastDataset
     device: str = "cpu",
 ) -> tuple[float, float]:
-    """Retorna (accuracy, loss)."""
-    model = ind.model.to(device)
+    """Retorna (accuracy, loss). Suporta FastDataset e DataLoader."""
+    model = ind.model
+    if next(model.parameters()).device != torch.device(device):
+        model = model.to(device)
+        ind.model = model
+
     model.eval()
-    criterion = nn.CrossEntropyLoss()
-    correct = total = 0
+    criterion = nn.CrossEntropyLoss(reduction="sum")
+    correct = 0
+    total = 0
     total_loss = 0.0
-    with torch.no_grad():
-        for xb, yb in loader:
-            xb, yb = xb.to(device), yb.to(device)
+
+    is_fast = hasattr(loader, 'get_val')
+
+    if is_fast:
+        vx, vy = loader.get_val()
+        # Avalia em chunks para não explodir VRAM
+        chunk = 2048
+        for i in range(0, len(vx), chunk):
+            xb = vx[i:i+chunk].to(device, non_blocking=True)
+            yb = vy[i:i+chunk].to(device, non_blocking=True)
             out = model(xb)
-            total_loss += criterion(out, yb).item() * len(yb)
-            preds = out.argmax(dim=1)
-            correct += (preds == yb).sum().item()
+            total_loss += criterion(out, yb).item()
+            correct += (out.argmax(dim=1) == yb).sum().item()
             total += len(yb)
+    else:
+        for xb, yb in loader:
+            xb = xb.to(device, non_blocking=True)
+            yb = yb.to(device, non_blocking=True)
+            out = model(xb)
+            total_loss += criterion(out, yb).item()
+            correct += (out.argmax(dim=1) == yb).sum().item()
+            total += len(yb)
+
     return correct / max(total, 1), total_loss / max(total, 1)
 
 
 def micro_adapt(
     ind: Individual,
-    x: torch.Tensor,
-    y: torch.Tensor,
+    loader,
     lr_micro: float = 1e-5,
     top_k_pct: float = 0.03,
     device: str = "cpu",
 ) -> None:
-    """
-    Micro-adaptação: atualiza top-k% parâmetros por ‖∂L/∂θ_j‖.
-    Anti-forgetting — só muda o mínimo necessário.
-    """
+    """Micro-adaptação: atualiza top-k% parâmetros por ‖∂L/∂θ_j‖."""
     model = ind.model.to(device)
     model.train()
-    x, y = x.to(device), y.to(device)
     criterion = nn.CrossEntropyLoss()
-    out = model(x)
-    loss = criterion(out, y)
-    loss.backward()
+
+    is_fast = hasattr(loader, 'get_train_batch')
+    if is_fast:
+        x, y = loader.get_train_batch(256)
+    else:
+        x, y = next(iter(loader))
+        x, y = x.to(device), y.to(device)
+
+    criterion(model(x), y).backward()
     with torch.no_grad():
-        all_grads = []
-        for p in model.parameters():
-            if p.grad is not None:
-                all_grads.extend(p.grad.abs().flatten().tolist())
-        if not all_grads:
+        all_grads = torch.cat([
+            p.grad.abs().flatten()
+            for p in model.parameters()
+            if p.grad is not None
+        ])
+        if all_grads.numel() == 0:
             return
-        threshold = sorted(all_grads, reverse=True)[max(1, int(len(all_grads) * top_k_pct))]
+        k = max(1, int(all_grads.numel() * top_k_pct))
+        threshold = all_grads.kthvalue(all_grads.numel() - k).values.item()
         for p in model.parameters():
             if p.grad is not None:
                 mask = (p.grad.abs() >= threshold).float()
                 p.data -= lr_micro * p.grad * mask
     model.zero_grad()
-
-
-# Importação necessária para mean
-import numpy as np

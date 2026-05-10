@@ -22,7 +22,7 @@ from dnaty.core.arch import DynamicMLP
 from dnaty.core.individual import Individual
 from dnaty.core.memory import EpisodicMemory
 
-SEEDS = [0, 1, 2, 3, 4]
+SEEDS = [0, 1, 2]
 N_TASKS = 5
 N_EPOCHS_CL = 15       # mais epochs para aprender cada tarefa
 TRAIN_SUBSET_CL = 1000  # mais dados por tarefa
