@@ -251,11 +251,11 @@ Entrada: população P_g, memória 𝓜, loaders (train, val)
 
 <h3>5.4 Experimento 3 — CIFAR-10 (Operadores Convolucionais)</h3>
 <table>
-<tr><th>Método</th><th>Acurácia</th><th>Dados Treino</th><th>Tipo</th></tr>
-<tr><td><strong>dNaty-CNN</strong></td><td><strong>41,78% ± 4,18%</strong></td><td><strong>5K</strong></td><td>CNN evolutiva</td></tr>
-<tr><td>ResNet-8 fixo</td><td>50,34% ± 2,03%</td><td>50K</td><td>CNN manual</td></tr>
+<tr><th>Método</th><th>Acurácia</th><th>Dados Treino</th><th>Tipo</th><th>p</th><th>d</th></tr>
+<tr><td><strong>dNaty-CNN</strong></td><td><strong>41.78% ± 4.18%</strong></td><td><strong>5K (GPU T4)</strong></td><td>CNN evolutiva</td><td>0.007</td><td>−2.59</td></tr>
+<tr><td>ResNet-8 fixo</td><td>50.34% ± 2.03%</td><td>5K</td><td>CNN manual</td><td>—</td><td>—</td></tr>
 </table>
-<p>Com config reduzida (5K amostras, 15 gerações), dNaty-CNN fica abaixo do ResNet-8. O resultado principal é a <strong>validação do Teorema 1 em CNNs</strong>: δ_grad ≥ 0 e δ_mem ≥ 0 confirmados em todas as medições. Com config completa (50K, G=50), esperado ~75%.</p>
+<p>Com config reduzida (5K amostras, 15 gerações, GPU T4), dNaty-CNN fica abaixo do ResNet-8. O resultado principal é a <strong>validação do Teorema 1 em CNNs</strong>: δ_grad ≥ 0 e δ_mem ≥ 0 confirmados em todas as medições. Com config completa (50K, G=50, BN+cosine), esperado ~70-75%.</p>
 
 <h3>5.5 Experimento 4 — Split-MNIST: Continual Learning</h3>
 <p>Split-MNIST divide o MNIST em 5 tarefas binárias sequenciais (dígitos 0-1, 2-3, 4-5, 6-7, 8-9). O modelo aprende cada tarefa sem acesso às anteriores.</p>
