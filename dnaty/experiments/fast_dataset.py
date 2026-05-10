@@ -35,6 +35,14 @@ class FastDataset:
             transform = T.Compose([T.ToTensor(), T.Normalize((0.2860,), (0.3530,))])
             train_raw = torchvision.datasets.FashionMNIST(data_dir, train=True, download=True, transform=transform)
             test_raw  = torchvision.datasets.FashionMNIST(data_dir, train=False, download=True, transform=transform)
+        elif name == "CIFAR10":
+            # CIFAR: flatten para (N, 3072) — compatível com MLP e CNN via reshape
+            mean = (0.4914, 0.4822, 0.4465)
+            std  = (0.2470, 0.2435, 0.2616)
+            # Sem augmentation para o cache — augmentation seria diferente a cada epoch
+            transform = T.Compose([T.ToTensor(), T.Normalize(mean, std)])
+            train_raw = torchvision.datasets.CIFAR10(data_dir, train=True,  download=True, transform=transform)
+            test_raw  = torchvision.datasets.CIFAR10(data_dir, train=False, download=True, transform=transform)
         else:
             raise ValueError(f"Dataset não suportado: {name}")
 
@@ -44,16 +52,22 @@ class FastDataset:
                 dataset = Subset(dataset, list(range(min(subset, len(dataset)))))
             loader = DataLoader(dataset, batch_size=len(dataset), shuffle=False, num_workers=0)
             x, y = next(iter(loader))
+            # Para CIFAR mantém shape (N, C, H, W) — CNN precisa disso
+            if name == "CIFAR10":
+                return x.to(device), y.to(device)
             return x.flatten(1).to(device), y.to(device)
 
         train_x_all, train_y_all = _load_all(train_raw, train_subset)
         self.val_x, self.val_y   = _load_all(test_raw)
 
-        # Separa treino/val do conjunto de treino se necessário
         self.train_x = train_x_all
         self.train_y = train_y_all
         self.n_train = len(self.train_x)
-        self.input_size = self.train_x.shape[1]  # 784
+        # input_size: para CIFAR é (3, 32, 32), para MNIST é 784
+        if name == "CIFAR10":
+            self.input_size = self.train_x.shape[1:]  # (3, 32, 32)
+        else:
+            self.input_size = self.train_x.shape[1]   # 784
 
         mb_train = self.train_x.element_size() * self.train_x.nelement() / 1e6
         mb_val   = self.val_x.element_size() * self.val_x.nelement() / 1e6

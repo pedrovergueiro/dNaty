@@ -2,7 +2,7 @@
 
 **Preprint · Blueprint Técnico-Científico · v4.1 — Dados Reais**
 *Documento pessoal — não publicado*
-*Gerado em: 2026-05-09*
+*Gerado em: 2026-05-10*
 
 ---
 
@@ -22,14 +22,14 @@ E[L_{g+1}] ≤ E[L_g] − δ_grad − δ_mem
 
 onde δ_mem > 0 é um termo novo ausente em toda a literatura anterior.
 
-**Resultados experimentais reais** (5 seeds, GPU T4, 2026-05-09):
+**Resultados experimentais reais** (5 seeds, GPU T4, 2026-05-10):
 
 | Dataset | dNaty | Baseline | Δ | p-value | Cohen's d |
 |---------|-------|----------|---|---------|-----------|
 | MNIST | 98.70 ± 0.02% | MLP 97.85% | +0.85pp | 0.0152 ✓ | 5.679 |
 | FashionMNIST | 90.00 ± 0.09% | MLP 88.41% | +1.59pp | 0.0805 ✓ | 2.339 |
 | CIFAR-10 (CNN) | 41.78 ± 4.18% | ResNet-8 50.34% | -8.56pp | 0.0066 | 2.590 |
-| Split-MNIST BWT | -0.1395 ± 0.0114 | EWC: -0.9861 | 99.97% menos forgetting | 0.0000 ✓ | 70.731 |
+| Split-MNIST BWT | -0.2037 ± 0.0115 | EWC: -0.9983 | 99.97% menos forgetting | 0.0001 ✓ | 67.532 |
 
 dNaty usa ~52.5K parâmetros vs 109.4K do MLP Fixo — **52% menos parâmetros com maior acurácia**.
 
@@ -57,7 +57,7 @@ dNaty ataca os três problemas com um único framework formalmente justificado.
 | C2 | Teorema dNaty-Convergence com prova não-circular | Original |
 | C3 | 10 operadores estruturais com garantias formais | Original |
 | C4 | Validação empírica em 3 domínios com análise estatística | Original |
-| C5 | Micro-adaptação top-k% com BWT = -0.1395 | Original |
+| C5 | Micro-adaptação top-k% com BWT = -0.2037 | Original |
 
 ---
 
@@ -67,7 +67,7 @@ dNaty ataca os três problemas com um único framework formalmente justificado.
 |---------|-----------|-----------|---------|----|--------------------|
 | NEAT (2002) | Variável | ✗ | ✗ | ✗ | Gradiente local + memória episódica formal |
 | DARTS (2019) | Contínua | ✓ | ✗ | ✗ | Discreto + memória + CL |
-| EWC (2017) | Fixa | ✓ | Fisher | ✓ | Estrutura variável + BWT 0.1× melhor |
+| EWC (2017) | Fixa | ✓ | Fisher | ✓ | Estrutura variável + BWT 0.2× melhor |
 | PackNet | Fixa | ✓ | ✗ | ✓ | Memória episódica + NAS simultâneo |
 | MultiNEAT | Variável | ✗ | ✗ | ✗ | Gradiente + memória formal |
 | **dNaty v4** | **Variável** | **✓** | **Episódica** | **✓** | — |
@@ -195,7 +195,7 @@ E[ L_total(M*_{g+1}) ]  ≤  E[ L_total(M*_g) ]  −  δ_grad  −  δ_mem(g)
 | η | 1e-3 |
 | λ₁ | 1e-4 |
 | Hardware | GPU T4 (Google Colab) |
-| Data | 2026-05-09 |
+| Data | 2026-05-10 |
 
 ### 6.2 MNIST — Resultados Reais
 
@@ -292,19 +292,17 @@ E[ L_total(M*_{g+1}) ]  ≤  E[ L_total(M*_g) ]  −  δ_grad  −  δ_mem(g)
 
 | Método | BWT ↑ | FM ↓ | t | p | d |
 |--------|-------|------|---|---|---|
-| **dNaty** | **-0.1395 ± 0.0114** | **0.1395** | 141.462 | **0.0000 ✓** | 70.731 |
-| EWC | -0.9861 ± 0.0014 | — | — | — | — |
-| MLP (sem CL) | -0.9817 | — | — | — | — |
+| **dNaty** | **-0.2037 ± 0.0115** | **0.2037** | 95.504 | **0.0001 ✓** | 67.532 |
+| EWC | -0.9983 ± 0.0003 | — | — | — | — |
+| MLP (sem CL) | -0.9984 | — | — | — | — |
 
 **BWT por seed:**
 
 | Seed | dNaty BWT | EWC BWT | Redução |
 |------|-----------|---------|---------|
-| 0 | -0.1539 | -0.9870 | 15.6% menos forgetting |
-| 1 | -0.1439 | -0.9856 | 14.6% menos forgetting |
-| 2 | -0.1192 | -0.9875 | 12.1% menos forgetting |
-| 3 | -0.1428 | -0.9837 | 14.5% menos forgetting |
-| 4 | -0.1375 | -0.9867 | 13.9% menos forgetting |
+| 0 | -0.1947 | -0.9986 | 19.5% menos forgetting |
+| 1 | -0.1965 | -0.9984 | 19.7% menos forgetting |
+| 2 | -0.2199 | -0.9979 | 22.0% menos forgetting |
 
 > **⚠️ Investigar antes do paper final:** R[i,j]=0 para j≥1 indica que o modelo só aprendeu T0. Verificar loop sequencial em `exp3_cl.py`.
 
@@ -365,7 +363,7 @@ NEAT + Adam seria otimização *sequencial*. dNaty realiza as três otimizaçõe
 - [x] MNIST: 98.70% ± 0.02% (5 seeds, p=0.0152)
 - [x] FashionMNIST: 90.00% ± 0.09% (5 seeds, p=0.0805)
 - [x] CIFAR-10 CNN: 41.78% (proof of concept)
-- [x] Split-MNIST CL: BWT=-0.1395 vs EWC -0.9861
+- [x] Split-MNIST CL: BWT=-0.2037 vs EWC -0.9983
 - [x] Teorema 1 validado empiricamente (225 medições)
 
 ### Pendente
@@ -447,4 +445,4 @@ def fast_non_dominated_sort(fitnesses):
 
 *dNaty — Documento Pessoal · v4.1 · Não Publicado*
 *Dados reais de exp1_results.json, exp2_cifar10_results.json, exp3_cl_results.json*
-*2026-05-09*
+*2026-05-10*

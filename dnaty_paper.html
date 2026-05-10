@@ -73,7 +73,7 @@
 <tr><th>Dataset</th><th>dNaty v5</th><th>MLP (60K)</th><th>Δ</th><th>Tempo/seed</th></tr>
 <tr><td>MNIST</td><td><strong>98.70% ± 0.02%</strong></td><td>97.85%</td><td><strong>+0.85pp (SUPERA, p=0.015 ✓)</strong></td><td>~13 min CPU</td></tr>
 <tr><td>FashionMNIST</td><td><strong>90.00% ± 0.09%</strong></td><td>88.41%</td><td><strong>+1.59pp (SUPERA)</strong></td><td>~13 min CPU</td></tr>
-<tr><td>Split-MNIST BWT</td><td><strong>−0.1395 ± 0.011</strong></td><td>EWC −0.9861</td><td>85.9% menos forgetting (p&lt;10⁻⁸, d=70.7)</td><td>—</td></tr>
+<tr><td>Split-MNIST BWT</td><td><strong>−0.2037 ± 0.011</strong></td><td>EWC −0.9983</td><td>79.6% menos forgetting (p=0.0001, d=67.5)</td><td>~2 min CPU</td></tr>
 </table>
 <p>Teorema 1 validado em 225/225 medições (δ_grad ≥ 0 e δ_mem ≥ 0 em todos os experimentos). dNaty v5 atinge paridade com MLP fixo em MNIST e supera em FashionMNIST, com arquitetura evolutiva e memória episódica ativa em ~95% das gerações.</p>
 <p><strong>Palavras-chave:</strong> Neuro-Evolução · AutoML · NAS · Continual Learning · Memória Episódica · NSGA-II · PyTorch</p>
@@ -261,11 +261,11 @@ Entrada: população P_g, memória 𝓜, loaders (train, val)
 <p>Split-MNIST divide o MNIST em 5 tarefas binárias sequenciais (dígitos 0-1, 2-3, 4-5, 6-7, 8-9). O modelo aprende cada tarefa sem acesso às anteriores.</p>
 <table>
 <tr><th>Método</th><th>BWT ↑ (0=ideal)</th><th>FM ↓</th><th>t</th><th>p</th><th>d</th></tr>
-<tr><td><strong>dNaty</strong></td><td><strong>−0,1395 ± 0,0114</strong></td><td><strong>0,1395</strong></td><td>141,46</td><td><strong>&lt;0,0001 ✓</strong></td><td>70,73</td></tr>
-<tr><td>EWC</td><td>−0,9861 ± 0,0014</td><td>0,9861</td><td>—</td><td>—</td><td>—</td></tr>
-<tr><td>MLP (sem CL)</td><td>−0,9817 ± 0,0011</td><td>0,9817</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td><strong>dNaty v5</strong></td><td><strong>−0.2037 ± 0.0115</strong></td><td><strong>0.2037</strong></td><td>—</td><td><strong>0.0001 ✓</strong></td><td>67.5</td></tr>
+<tr><td>EWC</td><td>−0.9983 ± 0.0003</td><td>0.9983</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>MLP (sem CL)</td><td>−0.9984 ± 0.0003</td><td>0.9984</td><td>—</td><td>—</td><td>—</td></tr>
 </table>
-<div class="highlight">dNaty reduz o esquecimento catastrófico em <strong>85,9%</strong> comparado ao EWC (BWT −0,1395 vs −0,9861). Cohen's d = 70,73 — efeito extraordinariamente grande. p &lt; 10⁻⁸.</div>
+<div class="highlight">dNaty reduz o esquecimento catastrófico em <strong>79.6%</strong> comparado ao EWC (BWT −0.2037 vs −0.9983). Cohen's d = 67.5 — efeito extraordinariamente grande. p = 0.0001. Testado com dataset completo por task (v5).</div>
 
 <div class="fig">
 <canvas id="clChart" width="820" height="280"></canvas>
