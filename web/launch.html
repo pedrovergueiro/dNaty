@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>dNaty — Como Lançar, Proteger e Monetizar</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;font-size:15px;line-height:1.7;color:#1a1a2e;background:#f8f9ff;max-width:900px;margin:0 auto;padding:20px 24px}
+h1{font-size:1.9rem;color:#1565c0;margin:20px 0 8px;border-bottom:3px solid #1565c0;padding-bottom:8px}
+h2{font-size:1.3rem;color:#0d47a1;margin:26px 0 8px;padding-left:12px;border-left:4px solid #42a5f5}
+h3{font-size:1.05rem;color:#1565c0;margin:16px 0 5px}
+p{margin-bottom:10px}
+.box{background:#fff;border:1px solid #dde;border-radius:10px;padding:16px 20px;margin:12px 0;box-shadow:0 2px 5px rgba(0,0,0,0.05)}
+.warn{background:#fff8e1;border-left:4px solid #f9a825;padding:12px 16px;margin:12px 0;border-radius:0 8px 8px 0}
+.danger{background:#ffebee;border-left:4px solid #c62828;padding:12px 16px;margin:12px 0;border-radius:0 8px 8px 0}
+.success{background:#e8f5e9;border-left:4px solid #2e7d32;padding:12px 16px;margin:12px 0;border-radius:0 8px 8px 0}
+.tip{background:#e3f2fd;border-left:4px solid #1565c0;padding:12px 16px;margin:12px 0;border-radius:0 8px 8px 0}
+code{background:#f0f4ff;padding:2px 6px;border-radius:4px;font-family:Courier New,monospace;font-size:0.88em;color:#1565c0}
+pre{background:#1a1a2e;color:#e8f0fe;padding:14px 18px;border-radius:8px;overflow-x:auto;margin:10px 0;font-size:0.85em;line-height:1.6}
+table{width:100%;border-collapse:collapse;margin:10px 0;font-size:0.88em}
+th{background:#1565c0;color:#fff;padding:7px 10px;text-align:left}
+td{border:1px solid #dde;padding:6px 10px}
+tr:nth-child(even){background:#f5f7ff}
+.step{display:flex;gap:12px;margin:10px 0;align-items:flex-start;padding:12px 16px;background:#fff;border:1px solid #dde;border-radius:8px}
+.step-num{background:#1565c0;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:0.9em;flex-shrink:0}
+.nav{background:#1565c0;color:#fff;padding:10px 18px;border-radius:8px;margin-bottom:20px;display:flex;gap:14px;flex-wrap:wrap}
+.nav a{color:#fff;text-decoration:none;font-size:0.88em;opacity:0.85}
+.nav a:hover{opacity:1;text-decoration:underline}
+.price-card{background:#fff;border:2px solid #1565c0;border-radius:10px;padding:16px;margin:8px 0;display:flex;justify-content:space-between;align-items:center}
+.price-card .price{font-size:1.6rem;font-weight:bold;color:#1565c0}
+</style>
+</head>
+<body>
+<div class="nav">
+  <strong>dNaty Launch</strong>
+  <a href="#licenca">Licença</a>
+  <a href="#arxiv">arXiv</a>
+  <a href="#github">GitHub</a>
+  <a href="#comunidade">Comunidade</a>
+  <a href="#monetizar">Monetizar</a>
+  <a href="#precos">Preços</a>
+  <a href="guia.html">← Guia</a>
+  <a href="index.html">← Site</a>
+</div>
+
+<h1>🚀 Como Lançar, Proteger e Monetizar o dNaty</h1>
+
+<div class="danger">
+<strong>⚠️ URGENTE — Licença:</strong> O repositório estava com licença MIT, que permite qualquer pessoa usar comercialmente de graça. Isso foi corrigido para Business Source License (BSL 1.1). Leia a seção de licença antes de qualquer outra coisa.
+</div>
+
+<h2 id="licenca">🔒 1. Licença — Como Proteger Sem Fechar o Código</h2>
+
+<div class="box">
+<h3>O que é a Business Source License (BSL 1.1)?</h3>
+<p>É a licença usada por MariaDB, HashiCorp (Terraform), Sentry e outras empresas que querem código visível mas uso comercial pago. Funciona assim:</p>
+<ul style="margin-left:20px;margin-top:8px">
+  <li>✅ Qualquer pessoa pode <strong>ver, estudar e usar para pesquisa</strong> de graça</li>
+  <li>✅ Pesquisadores podem usar em papers e experimentos de graça</li>
+  <li>✅ Estudantes e desenvolvedores podem aprender de graça</li>
+  <li>❌ <strong>Uso comercial</strong> (produto, serviço, consultoria) requer licença paga</li>
+  <li>📅 Em 2029, vira Apache 2.0 automaticamente (open source completo)</li>
+</ul>
+</div>
+
+<div class="warn">
+<strong>O que você precisa fazer agora:</strong> Adicionar seu email de contato no arquivo LICENSE onde está escrito <code>[your-email]</code>. Sem isso, ninguém sabe como comprar a licença comercial.
+</div>
+
+<h3>Como fica o README com a nova licença</h3>
+<div class="box">
+<p>Adicione isso no topo do README, logo após o título:</p>
+<pre>
+> **License:** Business Source License 1.1 — Free for research and non-commercial use.
+> Commercial use requires a license. See [LICENSE](LICENSE) or contact [seu-email].
+</pre>
+</div>
+
+<h3>O que NÃO é open source</h3>
+<table>
+<tr><th>Licença</th><th>Pode usar comercialmente?</th><th>Pode vender?</th><th>Pode modificar?</th></tr>
+<tr><td>MIT (antes)</td><td>✅ Sim, de graça</td><td>✅ Sim</td><td>✅ Sim</td></tr>
+<tr><td>BSL 1.1 (agora)</td><td>❌ Precisa pagar</td><td>❌ Precisa licença</td><td>✅ Para pesquisa</td></tr>
+<tr><td>Apache 2.0</td><td>✅ Sim, de graça</td><td>✅ Sim</td><td>✅ Sim</td></tr>
+<tr><td>GPL v3</td><td>✅ Mas deve abrir código</td><td>✅ Mas deve abrir código</td><td>✅ Mas deve abrir código</td></tr>
+</table>
+
+<h2 id="arxiv">📄 2. Como Publicar no arXiv</h2>
+
+<div class="tip">O arXiv é gratuito, estabelece prioridade intelectual com data e hora, e é onde 90% dos pesquisadores de ML buscam papers. É o primeiro passo antes de qualquer conferência.</div>
+
+<div class="step"><div class="step-num">1</div><div>
+<strong>Crie uma conta em arxiv.org</strong><br>
+Acesse <a href="https://arxiv.org/register" target="_blank">arxiv.org/register</a>. Use seu email real. O processo de aprovação leva 1-2 dias úteis.
+</div></div>
+
+<div class="step"><div class="step-num">2</div><div>
+<strong>Prepare o PDF do paper</strong><br>
+Abra o <code>dnaty_paper.html</code> no Chrome, clique em "Salvar como PDF". Ou converta para LaTeX (recomendado para conferências). O arXiv aceita PDF direto.
+</div></div>
+
+<div class="step"><div class="step-num">3</div><div>
+<strong>Escolha as categorias</strong><br>
+Categoria primária: <code>cs.NE</code> (Neural and Evolutionary Computing)<br>
+Categorias secundárias: <code>cs.LG</code> (Machine Learning), <code>cs.AI</code> (Artificial Intelligence)
+</div></div>
+
+<div class="step"><div class="step-num">4</div><div>
+<strong>Preencha os metadados</strong><br>
+Título: "dNaty: Dynamic Neuro-Adaptive sYstem with evoluTionarY Learning"<br>
+Autores: Pedro Vergueiro<br>
+Abstract: copie o resumo do paper (máx 1920 caracteres)<br>
+MSC class: 68T05 (Learning and adaptive systems)
+</div></div>
+
+<div class="step"><div class="step-num">5</div><div>
+<strong>Submeta e aguarde</strong><br>
+Após submissão, você recebe um número arXiv (ex: arXiv:2026.XXXXX). O paper aparece publicamente no dia seguinte. Guarde esse número — é sua prova de prioridade.
+</div></div>
+
+<div class="success">
+<strong>Após publicar no arXiv:</strong> Adicione o link no README, no site e em todas as comunicações. Exemplo: "dNaty: arXiv:2026.XXXXX [cs.NE]"
+</div>
+
+<h2 id="github">🐙 3. GitHub — Como Configurar Corretamente</h2>
+
+<div class="box">
+<h3>O que fazer no repositório agora</h3>
+<p>Acesse <a href="https://github.com/pedrovergueiro/dNaty" target="_blank">github.com/pedrovergueiro/dNaty</a> e faça:</p>
+</div>
+
+<div class="step"><div class="step-num">1</div><div>
+<strong>Adicione uma descrição clara</strong><br>
+Em Settings → About: "Dynamic Neuro-Adaptive sYstem — NAS + Continual Learning + Episodic Memory. BSL 1.1 license."
+</div></div>
+
+<div class="step"><div class="step-num">2</div><div>
+<strong>Adicione topics (tags)</strong><br>
+Em Settings → Topics: <code>neural-architecture-search</code>, <code>continual-learning</code>, <code>evolutionary-algorithms</code>, <code>pytorch</code>, <code>machine-learning</code>, <code>episodic-memory</code>, <code>nsga2</code>
+</div></div>
+
+<div class="step"><div class="step-num">3</div><div>
+<strong>Configure o website</strong><br>
+Em Settings → Website: coloque a URL do site Vercel (dnaty-web.vercel.app)
+</div></div>
+
+<div class="step"><div class="step-num">4</div><div>
+<strong>Crie um CITATION.cff</strong><br>
+Isso permite que pesquisadores citem o dNaty com um clique no GitHub:
+<pre>
+cff-version: 1.2.0
+message: "If you use dNaty, please cite it as below."
+authors:
+  - family-names: Vergueiro
+    given-names: Pedro
+title: "dNaty: Dynamic Neuro-Adaptive sYstem with evoluTionarY Learning"
+version: 5.1
+date-released: 2026-05-10
+url: "https://github.com/pedrovergueiro/dNaty"
+</pre>
+</div></div>
+
+<div class="step"><div class="step-num">5</div><div>
+<strong>Ative Discussions</strong><br>
+Em Settings → Features → Discussions: ative. Isso cria um fórum dentro do GitHub onde a comunidade pode fazer perguntas.
+</div></div>
+
+<div class="warn">
+<strong>O que NÃO fazer:</strong> Não coloque "open source" em nenhum lugar. A licença BSL 1.1 não é open source. Use "source available" ou "research license" em vez disso.
+</div>
+
+<h2 id="comunidade">👥 4. Como Construir a Comunidade</h2>
+
+<div class="box">
+<h3>Fase 1 — Primeiros 100 usuários (meses 1-3)</h3>
+</div>
+
+<div class="step"><div class="step-num">1</div><div>
+<strong>Post no Reddit r/MachineLearning</strong><br>
+Título: "I built a system that does NAS + Continual Learning simultaneously with a formal convergence theorem — 98.70% MNIST, 79.6% less forgetting than EWC"<br>
+Inclua: link do arXiv, link do GitHub, gráficos de convergência. Não venda nada — só mostre o resultado.
+</div></div>
+
+<div class="step"><div class="step-num">2</div><div>
+<strong>Post no Hacker News (Show HN)</strong><br>
+Título: "Show HN: dNaty – Neural architecture that evolves itself while learning continuously"<br>
+Foque no aspecto técnico único: nenhum outro sistema faz NAS + CL com prova formal.
+</div></div>
+
+<div class="step"><div class="step-num">3</div><div>
+<strong>Twitter/X — thread técnica</strong><br>
+Thread de 10 tweets explicando o dNaty: problema → solução → teorema → resultados → código. Use imagens dos gráficos. Tag: @paperswithcode, @huggingface, @weights_biases
+</div></div>
+
+<div class="step"><div class="step-num">4</div><div>
+<strong>Papers With Code</strong><br>
+Cadastre o paper em <a href="https://paperswithcode.com" target="_blank">paperswithcode.com</a>. É onde pesquisadores buscam implementações. Adicione os benchmarks MNIST e Split-MNIST.
+</div></div>
+
+<div class="step"><div class="step-num">5</div><div>
+<strong>Discord da comunidade</strong><br>
+Crie um servidor Discord: "dNaty Community". Canais: #announcements, #research, #bugs, #commercial-use. Link no README e no site.
+</div></div>
+
+<div class="box">
+<h3>Fase 2 — Primeiros 1.000 usuários (meses 4-9)</h3>
+<ul style="margin-left:20px">
+  <li>Responda TODOS os issues e discussions no GitHub — isso constrói reputação</li>
+  <li>Escreva posts técnicos no Medium/Substack explicando partes do algoritmo</li>
+  <li>Apresente em meetups de ML (São Paulo, online)</li>
+  <li>Após aceitação em conferência: press release + LinkedIn</li>
+</ul>
+</div>
+
+<h2 id="monetizar">💰 5. Como Monetizar — Passo a Passo</h2>
+
+<div class="step"><div class="step-num">1</div><div>
+<strong>Crie uma landing page de espera</strong><br>
+Adicione um formulário no site: "Seja notificado quando o dNaty Cloud lançar". Colete emails. Isso é seu pipeline de vendas antes de ter produto.
+</div></div>
+
+<div class="step"><div class="step-num">2</div><div>
+<strong>Beta fechado com 10 empresas</strong><br>
+Contate diretamente 10 empresas que têm o problema que dNaty resolve: fintechs (fraude), healthtechs (diagnóstico), indústria (manutenção preditiva). Ofereça 3 meses grátis em troca de feedback e depoimento.
+</div></div>
+
+<div class="step"><div class="step-num">3</div><div>
+<strong>Stripe para pagamentos</strong><br>
+Configure <a href="https://stripe.com" target="_blank">stripe.com</a> com os 4 tiers de preço. Integre com a API do dNaty Cloud. Stripe cobra 2.9% + $0.30 por transação.
+</div></div>
+
+<div class="step"><div class="step-num">4</div><div>
+<strong>Licença comercial manual (enquanto não tem API)</strong><br>
+Para empresas que querem usar agora: cobre $500-2.500/mês por contrato direto. Envie um PDF de licença assinado. Simples e funciona.
+</div></div>
+
+<h2 id="precos">💵 6. Tabela de Preços Recomendada</h2>
+
+<div class="price-card"><div><strong>Developer</strong><br><small>Pesquisa e uso pessoal</small></div><div class="price">Grátis</div></div>
+<div class="price-card"><div><strong>Pro</strong><br><small>Startups e freelancers</small></div><div class="price">$49/mês</div></div>
+<div class="price-card"><div><strong>Business</strong><br><small>Times de ML</small></div><div class="price">$299/mês</div></div>
+<div class="price-card"><div><strong>Enterprise</strong><br><small>Bancos, hospitais, indústria</small></div><div class="price">$2.500/mês</div></div>
+
+<h3>Simulação de receita</h3>
+<table>
+<tr><th>Ano</th><th>Pro</th><th>Business</th><th>Enterprise</th><th>ARR</th></tr>
+<tr><td>Ano 1</td><td>100 clientes</td><td>25 clientes</td><td>3 clientes</td><td>~$150K</td></tr>
+<tr><td>Ano 2</td><td>300 clientes</td><td>80 clientes</td><td>10 clientes</td><td>~$763K</td></tr>
+<tr><td>Ano 3</td><td>800 clientes</td><td>200 clientes</td><td>30 clientes</td><td>~$2.1M</td></tr>
+</table>
+
+<h2>📋 Checklist Completo — O que fazer esta semana</h2>
+<div class="box">
+<p>☐ Adicionar seu email no arquivo LICENSE (onde está [your-email])</p>
+<p>☐ Atualizar README com badge de licença BSL 1.1</p>
+<p>☐ Criar conta no arXiv e submeter o paper</p>
+<p>☐ Adicionar CITATION.cff no repositório</p>
+<p>☐ Ativar Discussions no GitHub</p>
+<p>☐ Adicionar topics no repositório GitHub</p>
+<p>☐ Criar servidor Discord</p>
+<p>☐ Postar no Reddit r/MachineLearning</p>
+<p>☐ Cadastrar no Papers With Code</p>
+<p>☐ Adicionar formulário de espera no site</p>
+</div>
+
+<hr style="margin:28px 0;border:none;border-top:1px solid #dde">
+<p style="text-align:center;color:#888;font-size:0.85em">
+  dNaty v5.1 · Pedro Vergueiro · 2026 ·
+  <a href="guia.html">Guia</a> ·
+  <a href="codigo.html">Código</a> ·
+  <a href="index.html">Site</a>
+</p>
+</body>
+</html>
