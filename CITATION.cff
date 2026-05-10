@@ -4,6 +4,7 @@ type: software
 authors:
   - family-names: Vergueiro
     given-names: Pedro
+    email: devergueiro111@gmail.com
 title: "dNaty: Dynamic Neuro-Adaptive sYstem with evoluTionarY Learning"
 abstract: "A framework that unifies Neural Architecture Search, Continual Learning, and Episodic Memory with a formal convergence theorem."
 version: "5.1"
@@ -11,6 +12,9 @@ date-released: "2026-05-10"
 url: "https://github.com/pedrovergueiro/dNaty"
 repository-code: "https://github.com/pedrovergueiro/dNaty"
 license: "BSL-1.1"
+contact:
+  - email: devergueiro111@gmail.com
+    name: "Pedro Vergueiro"
 keywords:
   - neural-architecture-search
   - continual-learning

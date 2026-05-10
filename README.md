@@ -6,11 +6,12 @@
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-3776ab.svg?logo=python&logoColor=white)](https://www.python.org/)
 [![PyTorch 2.0+](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg?logo=pytorch&logoColor=white)](https://pytorch.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: BSL 1.1](https://img.shields.io/badge/License-BSL_1.1-blue.svg)](LICENSE)
 [![Preprint](https://img.shields.io/badge/preprint-v5.1-brightgreen.svg)](dnaty-paper-real.md)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/pedrovergueiro/dNaty/blob/main/dnaty_colab.ipynb)
 
-**The first algorithm to formally unify Neural Architecture Search (NAS) and Continual Learning (CL) with a convergence theorem.**
+> **License:** Business Source License 1.1 — Free for research and non-commercial use.  
+> Commercial use requires a license. Contact: devergueiro111@gmail.com
 
 [Paper](dnaty-paper-real.md) · [Manual](docs/USER_MANUAL.md) · [Protocol](docs/EXPERIMENT_PROTOCOL.md) · [Website](https://dnaty-web.vercel.app) · [Colab Notebook](dnaty_colab.ipynb) · [Results](#results)
 
