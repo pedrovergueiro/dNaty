@@ -85,8 +85,18 @@ class DnatyEvolver:
         model = DynamicMLP(sizes, acts, self.n_classes)
         return Individual(model, EpisodicMemory(decay_gamma=self.memory_gamma))
 
-    def _init_population(self) -> None:
-        self.population = [self._make_individual() for _ in range(self.n_pop)]
+    def _init_population(self, seed: "Individual | None" = None) -> None:
+        if seed is None:
+            self.population = [self._make_individual() for _ in range(self.n_pop)]
+        else:
+            # Primeiro indivíduo é o seed; restantes são mutações do seed
+            self.population = [seed.clone()]
+            for _ in range(self.n_pop - 1):
+                op = np.random.choice(OPERATORS)
+                mutant, success = apply_operator(seed, op)
+                if not success or not mutant.model.is_valid():
+                    mutant = seed.clone()
+                self.population.append(mutant)
 
     def _fitness(self, ind: Individual) -> tuple[float, float, float]:
         cost = ind.count_params() * 1e-5 + ind.count_flops() * 1e-8
@@ -172,8 +182,10 @@ class DnatyEvolver:
         val_loader: torch.utils.data.DataLoader,
         early_stop_patience: int = 8,
         early_stop_min_delta: float = 1e-4,
+        seed_individual: "Individual | None" = None,
+        progress_callback=None,
     ) -> tuple[Individual, list[GenerationLog]]:
-        self._init_population()
+        self._init_population(seed=seed_individual)
 
         fitnesses = self._eval_population(self.population, val_loader)
         prev_best_acc = max(ind.acc for ind in self.population)
@@ -221,6 +233,12 @@ class DnatyEvolver:
             if self.verbose:
                 pbar.set_description(str(log))
 
+            if progress_callback is not None:
+                try:
+                    progress_callback(log)
+                except Exception:
+                    pass
+
             # ── Early stopping ────────────────────────────────────────────
             if best_ind.acc > best_acc_ever + early_stop_min_delta:
                 best_acc_ever = best_ind.acc
@@ -234,3 +252,31 @@ class DnatyEvolver:
 
         best = max(self.population, key=lambda ind: ind.acc)
         return best, self.history
+
+
+class CnnEvolver(DnatyEvolver):
+    """
+    Evolver para DynamicCNN — usa operadores CNN reais (Conv2D, DepthwiseSep, etc.).
+    Mesma lógica de evolução do DnatyEvolver, mas _make_individual e _mutate_population
+    operam sobre DynamicCNN em vez de DynamicMLP.
+    """
+
+    def _make_individual(self) -> Individual:
+        from dnaty.core.arch_cnn import DynamicCNN
+        model = DynamicCNN()  # config padrão: 3 blocos conv para CIFAR-10
+        return Individual(model, EpisodicMemory(decay_gamma=self.memory_gamma))
+
+    def _mutate_population(self, population: list[Individual]) -> list[Individual]:
+        from dnaty.operators.mutations_cnn import CNN_OPERATORS, apply_cnn_operator
+        op_probs = self.shared_memory.query_mutation_probs(CNN_OPERATORS, tau=self.memory_tau)
+        ops   = list(op_probs.keys())
+        probs = list(op_probs.values())
+        mutated = []
+        for ind in population:
+            op = np.random.choice(ops, p=probs)
+            new_ind, success = apply_cnn_operator(ind, op)
+            if not success or not new_ind.model.is_valid():
+                new_ind = ind.clone()
+                new_ind.last_op = "no_op"
+            mutated.append(new_ind)
+        return mutated
