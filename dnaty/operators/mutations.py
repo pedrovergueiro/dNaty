@@ -74,16 +74,15 @@ def add_neuron(ind: Individual, eps: float = 0.01) -> tuple[Individual, bool]:
 
 
 def remove_neuron(ind: Individual) -> tuple[Individual, bool]:
-    """Op 2: remove neurônio com menor norma de peso (proxy para menor gradiente)."""
+    """Op 2: remove ~12.5% dos neuronios da camada escolhida."""
     sizes = list(ind.model.layer_sizes)
     acts = list(ind.model.activations)
-    # Só remove se camada oculta tem > 4 neurônios (índices 1 até len-2)
     candidates = [i for i in range(1, len(sizes) - 1) if sizes[i] > 4]
     if not candidates:
         return ind, False
     layer_idx = candidates[np.random.randint(len(candidates))]
-    sizes[layer_idx] -= 1
-    # Reconstruir com _rebuild_from_sizes (copia pesos truncados automaticamente)
+    n_remove = max(1, sizes[layer_idx] // 8)
+    sizes[layer_idx] = max(4, sizes[layer_idx] - n_remove)
     new_ind = _rebuild_from_sizes(ind, sizes, acts)
     new_ind.last_op = "remove_neuron"
     return new_ind, True
@@ -210,11 +209,10 @@ def duplicate_module(ind: Individual, noise_eps: float = 0.01) -> tuple[Individu
 
 
 def add_conv_block(ind: Individual) -> tuple[Individual, bool]:
-    """Op 9: para MLP, adiciona camada densa extra (proxy de conv block)."""
+    """Op 9: insere camada compacta (metade do ultimo hidden) — gargalo que reduz FLOPs."""
     sizes = list(ind.model.layer_sizes)
     acts = list(ind.model.activations)
-    # Insere camada com tamanho similar à última camada oculta
-    insert_size = max(16, sizes[-1])
+    insert_size = max(16, sizes[-1] // 2)
     new_sizes = sizes + [insert_size]
     new_acts = acts + ["relu"]
     new_ind = _rebuild_from_sizes(ind, new_sizes, new_acts)
@@ -223,13 +221,13 @@ def add_conv_block(ind: Individual) -> tuple[Individual, bool]:
 
 
 def depthwise_sep(ind: Individual) -> tuple[Individual, bool]:
-    """Op 10: adiciona camada eficiente (tamanho reduzido — proxy de depthwise sep)."""
+    """Op 10: insere gargalo estreito (last//4) — representa compressao depthwise em MLP."""
     sizes = list(ind.model.layer_sizes)
     acts = list(ind.model.activations)
-    # Camada com 1/4 do tamanho — eficiência de FLOPs
-    efficient_size = max(8, sizes[-1] // 4)
-    new_sizes = sizes + [efficient_size]
-    new_acts = acts + ["gelu"]
+    last = sizes[-1]
+    narrow = max(8, last // 4)
+    new_sizes = sizes + [narrow]
+    new_acts = acts + ["relu"]
     new_ind = _rebuild_from_sizes(ind, new_sizes, new_acts)
     new_ind.last_op = "depthwise_sep"
     return new_ind, True

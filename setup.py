@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="dnaty",
-    version="5.1.0",
+    version="5.2.0",
     description="Dynamic Neuro-Adaptive sYstem with evoluTionarY Learning",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",

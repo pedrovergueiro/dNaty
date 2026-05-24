@@ -47,7 +47,7 @@ class DnatyEvolver:
         t_local: int = 3,
         lr: float = 1e-3,
         lambda1: float = 1e-4,
-        lambda2: float = 1e-3,
+        lambda2: float = 1e-6,   # FLOPs weight in Pareto fitness; use 1e-8 for CL
         memory_gamma: float = 0.99,
         memory_tau: float = 1.0,
         top_k_pct: float = 0.03,
@@ -99,7 +99,10 @@ class DnatyEvolver:
                 self.population.append(mutant)
 
     def _fitness(self, ind: Individual) -> tuple[float, float, float]:
-        cost = ind.count_params() * 1e-5 + ind.count_flops() * 1e-8
+        # lambda2 controls FLOPs weight in Pareto selection:
+        #   1e-6 → real compression pressure (NAS default)
+        #   1e-8 → negligible FLOPs pressure (CL: preserves accuracy over efficiency)
+        cost = ind.count_params() * 1e-5 + ind.count_flops() * self.lambda2
         ind.fitness = (ind.acc, -cost, 0.0)
         return ind.fitness
 

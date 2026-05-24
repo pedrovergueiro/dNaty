@@ -21,10 +21,12 @@ def local_train(
     rho: float = 0.05,
     device: str = "cpu",
     batch_size: int = 512,
+    augment_images: bool = True,
 ) -> tuple[float, float, float]:
     """
     Treina ind por n_epochs. Retorna (loss_antes, loss_depois, grad_norm_medio).
     Suporta FastDataset (get_train_batch) e DataLoader padrão.
+    augment_images: aplica RandomCrop+HFlip em input 4D (imagens). Ignorado p/ MLP (2D).
     """
     model = ind.model
     if next(model.parameters()).device != torch.device(device):
@@ -48,6 +50,22 @@ def local_train(
     # Detecta se é FastDataset ou DataLoader
     is_fast = hasattr(loader, 'get_train_batch')
 
+    # Data augmentation lazy: só criada quando vê input 4D (imagem). MLP 2D nunca dispara.
+    augment = None
+    def _build_augment(img_size):
+        import torchvision.transforms as _T
+        return _T.Compose([
+            _T.RandomCrop(img_size, padding=4),
+            _T.RandomHorizontalFlip(),
+        ])
+
+    # Mixed precision (AMP): 2-3x mais rápido em GPU com Tensor Cores, no-op em CPU.
+    device_type = "cuda" if str(device).startswith("cuda") else "cpu"
+    use_amp = device_type == "cuda"
+    if use_amp:
+        torch.backends.cudnn.benchmark = True  # autotuna kernels conv p/ shapes fixos
+    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
+
     loss_first = 0.0
     loss_last  = 0.0
     total_grad_sq = 0.0
@@ -68,11 +86,18 @@ def local_train(
         for xb, yb in batches:
             xb = xb.to(device, non_blocking=True)
             yb = yb.to(device, non_blocking=True)
+            if augment_images and xb.dim() == 4:
+                if augment is None:
+                    augment = _build_augment(xb.shape[-1])
+                xb = augment(xb)
             optimizer.zero_grad(set_to_none=True)
-            out = model(xb)
-            loss = criterion(out, yb) + cost_penalty
-            loss.backward()
+            with torch.autocast(device_type=device_type, enabled=use_amp):
+                out = model(xb)
+                loss = criterion(out, yb) + cost_penalty
+            scaler.scale(loss).backward()
 
+            # Unscale antes de medir norma do gradiente (AMP escala os grads)
+            scaler.unscale_(optimizer)
             with torch.no_grad():
                 gn_sq = sum(
                     p.grad.norm().pow(2)
@@ -81,7 +106,8 @@ def local_train(
                 )
                 total_grad_sq += gn_sq.item()
 
-            optimizer.step()
+            scaler.step(optimizer)
+            scaler.update()
             epoch_loss += loss.item()
             n_batches += 1
             n_steps += 1
