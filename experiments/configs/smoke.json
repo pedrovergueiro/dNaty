@@ -1,6 +1,0 @@
-{
-  "profile": "smoke",
-  "description": "Fast CPU validation. Use this before any long run.",
-  "experiments": ["sanity", "exp23"],
-  "expected_runtime": "under 2 minutes on CPU"
-}

@@ -1,5 +1,10 @@
+# Variáveis de ambiente — nunca commitar
+.env
+*.env
+
 # Python
 __pycache__/
+**/__pycache__/
 *.py[cod]
 *.pyo
 *.pyd
@@ -41,6 +46,11 @@ Thumbs.db
 web/_*.html
 web/_*.py
 web/finish_html.py
+
+# Separate repos (tracked independently)
+dnaty_saas/
+frontend/
+landing/
 
 # Temp files
 *.tmp

@@ -31,8 +31,11 @@ from dnaty.operators.mutations import OPERATORS, apply_operator
 # ── Args ──────────────────────────────────────────────────────────────────────
 parser = argparse.ArgumentParser()
 parser.add_argument("--quick", action="store_true", help="30 gens, 15K (~10 min)")
+parser.add_argument("--dataset", default="MNIST", choices=["MNIST", "FashionMNIST"],
+                    help="dataset (MNIST default; FashionMNIST p/ provar generalizacao)")
 args = parser.parse_args()
 
+DATASET  = args.dataset
 N_GEN    = 30 if args.quick else 50
 N_POP    = 15 if args.quick else 20
 SUBSET   = 15_000 if args.quick else 30_000
@@ -237,15 +240,15 @@ def run_cl_proof() -> dict:
 
 
 # ── Summary ───────────────────────────────────────────────────────────────────
-def print_summary(nas: dict, cl: dict) -> None:
-    banner("PROVA FINAL -- dNATY v5.1")
+def print_summary(nas: dict, cl: dict | None) -> None:
+    banner("PROVA FINAL -- dNATY v5.2")
 
     d = nas["dNATY"]
     r = nas["RandomNAS"]
     delta = d["acc"] - r["acc"]
     speedup = nas.get("speedup")
 
-    print(f"\n  [NAS -- {N_GEN} gens, pop={N_POP}, MNIST {SUBSET//1000}K]")
+    print(f"\n  [NAS -- {N_GEN} gens, pop={N_POP}, {DATASET} {SUBSET//1000}K]")
     m = "[OK]" if delta > 0 else "[--]"
     print(f"  {m} Acuracia:  {d['acc']:.4f} (dNATY)  vs  {r['acc']:.4f} (Random)  ({delta:+.4f} pp)")
     m = "[OK]" if d["reduction_pct"] >= 20 else "[--]"
@@ -256,12 +259,13 @@ def print_summary(nas: dict, cl: dict) -> None:
         g_r = r['gens_to_target']
         print(f"  {m} Speedup:   {speedup:.1f}x  (dNATY gen {g_d} vs RandomNAS gen {g_r} para acc={nas['target_acc']})")
 
-    print(f"\n  [CL -- Split-MNIST 5 tasks, 3 seeds]")
-    m = "[OK]" if cl["ratio"] >= 5 else "[--]"
-    print(f"  {m} BWT:       {cl['dnaty_bwt']:.4f} (dNATY)  vs  {cl['ewc_bwt']:.4f} (EWC)  ->  {cl['ratio']:.0f}x melhor")
+    if cl is not None:
+        print(f"\n  [CL -- Split-MNIST 5 tasks, 3 seeds]")
+        m = "[OK]" if cl["ratio"] >= 5 else "[--]"
+        print(f"  {m} BWT:       {cl['dnaty_bwt']:.4f} (dNATY)  vs  {cl['ewc_bwt']:.4f} (EWC)  ->  {cl['ratio']:.0f}x melhor")
 
     nas_pass = delta > 0 and d["reduction_pct"] >= 20 and (speedup is None or speedup >= 1.5)
-    cl_pass  = cl["ratio"] >= 5
+    cl_pass  = (cl is None) or cl["ratio"] >= 5
     all_pass = nas_pass and cl_pass
 
     print(f"\n{'='*W}")
@@ -269,10 +273,10 @@ def print_summary(nas: dict, cl: dict) -> None:
         print("  TODOS OS CLAIMS VERIFICADOS [OK]")
     else:
         issues = []
-        if delta <= 0:        issues.append("acc dNATY <= RandomNAS")
-        if d["reduction_pct"] >= 0: issues.append(f"FLOPs nao comprimiu ({d['reduction_pct']:+.1f}%)")
+        if delta <= 0:              issues.append("acc dNATY <= RandomNAS")
+        if d["reduction_pct"] < 20: issues.append(f"FLOPs -{d['reduction_pct']:.1f}% < 20%")
         if speedup and speedup < 1.5: issues.append(f"speedup {speedup:.1f}x < 1.5x")
-        if cl["ratio"] < 5:   issues.append(f"CL ratio {cl['ratio']:.1f}x < 5x")
+        if cl is not None and cl["ratio"] < 5: issues.append(f"CL ratio {cl['ratio']:.1f}x < 5x")
         print(f"  Pendente: {' | '.join(issues)}")
     print(f"{'='*W}\n")
 
@@ -281,16 +285,16 @@ def print_summary(nas: dict, cl: dict) -> None:
 def main():
     banner(
         f"dNATY prove_it.py\n"
-        f"  {N_GEN} gens | pop={N_POP} | MNIST {SUBSET//1000}K | {DEVICE.upper()}"
+        f"  {N_GEN} gens | pop={N_POP} | {DATASET} {SUBSET//1000}K | {DEVICE.upper()}"
     )
 
     t_total = time.time()
 
-    print("\n[Carregando dataset ...]", flush=True)
-    ds = FastDataset("MNIST", device=DEVICE, train_subset=SUBSET)
+    print(f"\n[Carregando {DATASET} ...]", flush=True)
+    ds = FastDataset(DATASET, device=DEVICE, train_subset=SUBSET)
 
     nas_out = run_nas_proof(ds)
-    cl_out  = run_cl_proof()
+    cl_out  = run_cl_proof() if DATASET == "MNIST" else None
 
     print_summary(nas_out, cl_out)
 

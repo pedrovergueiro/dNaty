@@ -22,11 +22,13 @@ def local_train(
     device: str = "cpu",
     batch_size: int = 512,
     augment_images: bool = True,
+    mixup_alpha: float = 0.2,
 ) -> tuple[float, float, float]:
     """
     Treina ind por n_epochs. Retorna (loss_antes, loss_depois, grad_norm_medio).
     Suporta FastDataset (get_train_batch) e DataLoader padrão.
-    augment_images: aplica RandomCrop+HFlip em input 4D (imagens). Ignorado p/ MLP (2D).
+    augment_images: aplica RandomCrop+HFlip+mixup em input 4D (imagens). Ignorado p/ MLP (2D).
+    mixup_alpha: forca do mixup (Beta(a,a)); 0 desativa.
     """
     model = ind.model
     if next(model.parameters()).device != torch.device(device):
@@ -86,14 +88,24 @@ def local_train(
         for xb, yb in batches:
             xb = xb.to(device, non_blocking=True)
             yb = yb.to(device, non_blocking=True)
+            use_mixup = False
             if augment_images and xb.dim() == 4:
                 if augment is None:
                     augment = _build_augment(xb.shape[-1])
                 xb = augment(xb)
+                if mixup_alpha > 0:
+                    use_mixup = True
+                    lam = float(np.random.beta(mixup_alpha, mixup_alpha))
+                    perm = torch.randperm(xb.size(0), device=xb.device)
+                    xb = lam * xb + (1.0 - lam) * xb[perm]
+                    yb_b = yb[perm]
             optimizer.zero_grad(set_to_none=True)
             with torch.autocast(device_type=device_type, enabled=use_amp):
                 out = model(xb)
-                loss = criterion(out, yb) + cost_penalty
+                if use_mixup:
+                    loss = lam * criterion(out, yb) + (1.0 - lam) * criterion(out, yb_b) + cost_penalty
+                else:
+                    loss = criterion(out, yb) + cost_penalty
             scaler.scale(loss).backward()
 
             # Unscale antes de medir norma do gradiente (AMP escala os grads)
