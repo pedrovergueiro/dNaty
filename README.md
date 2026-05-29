@@ -6,6 +6,7 @@
 
 **46.5% fewer FLOPs • 1.6× faster inference • 98.85% accuracy retained**
 
+[![PyPI version](https://img.shields.io/pypi/v/dnaty.svg)](https://pypi.org/project/dnaty/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-3776ab.svg?logo=python&logoColor=white)](https://www.python.org/)
 [![PyTorch 2.0+](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg?logo=pytorch&logoColor=white)](https://pytorch.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -49,7 +50,7 @@ dNATY/
 ├── notebooks/          # Experiments & benchmarks
 ├── scripts/            # Demo & utilities
 ├── tests/              # Unit tests
-└── setup.py            # Installation
+└── pyproject.toml      # Package config
 ```
 
 ---

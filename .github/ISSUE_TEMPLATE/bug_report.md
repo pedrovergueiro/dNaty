@@ -27,7 +27,7 @@ Se aplicável, adicione screenshots ou logs.
 ## Ambiente
 - OS: [e.g., Ubuntu 22.04, Windows 11]
 - Python: [e.g., 3.9, 3.10]
-- dNATY version: [e.g., 5.2.0]
+- dNATY version: [e.g., 1.0.0]
 - CUDA: [e.g., 12.0, CPU only]
 
 ## Contexto Adicional

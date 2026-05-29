@@ -261,7 +261,7 @@ def run_cl() -> dict:
 
 # --- Sumario final ------------------------------------------------------------
 def print_summary(nas_out: dict | None, cl_out: dict | None) -> None:
-    banner("RESUMO FINAL -- dNATY v5.1")
+    banner("RESUMO FINAL -- dNATY v1.0")
 
     if nas_out:
         dnaty  = nas_out["dNATY (memory-guided)"]

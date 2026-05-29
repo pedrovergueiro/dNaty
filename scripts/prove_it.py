@@ -241,7 +241,7 @@ def run_cl_proof() -> dict:
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 def print_summary(nas: dict, cl: dict | None) -> None:
-    banner("PROVA FINAL -- dNATY v5.2")
+    banner("PROVA FINAL -- dNATY v1.0")
 
     d = nas["dNATY"]
     r = nas["RandomNAS"]

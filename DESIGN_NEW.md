@@ -65,7 +65,7 @@ Text:
 
 ### 2. **Hero Section**
 ```
-     ✨ v5.2 • compress() API
+     ✨ v1.0 • compress() API
      
 Compress AI Models
 In One Line

@@ -1,54 +1,38 @@
 # Changelog
 
-Todas as mudanças notáveis neste projeto estão documentadas neste arquivo.
+All notable changes to dNATY are documented here.
 
-## [5.2.0] - 2026-05-29
+## [1.0.0] - 2026-05-29 — First Public Release
 
-### Added
-- **Public API**: `compress()` function para uso direto
-- **Website**: React frontend com admin/user dashboard
-- **Docker**: Multi-stage Dockerfile com CPU/GPU variants
-- **Admin Panel**: Real-time metrics (compressions, uptime, FLOPs reduction)
-- **User Dashboard**: Plano info, quota tracking, compression history
-- **Pricing Panel**: 3 tiers (Starter $29, Pro $99, Enterprise custom)
-- **Benchmarks**: CIFAR-100 baseline (-46.5% FLOPs vs EWC)
-- **Documentation**: API docs + architecture guide
+First stable release of dNATY on PyPI (`pip install dnaty`).
 
-### Changed
-- MobileNetV3 classifier reconstruction para CIFAR-100 compatibility
-- Frontend navigation com React Router (fixes: dashboard, login, admin, pricing links)
+### What's included
 
-### Fixed
-- Dimension mismatch error em MobileNetV3 classifier layer
-- React app not loading (added #root mounting point + script)
-- Missing API imports e service stubs
+- **`compress()` public API** — compress any PyTorch `nn.Module` with one function call
+- **Evolutionary NAS** — multi-objective NSGA-II search (maximize accuracy, minimize FLOPs)
+- **Episodic memory** — operators that worked before are tried more often; search improves over generations
+- **FastDataset** — loads entire dataset into RAM once; zero I/O overhead across all generations
+- **CompressResult** — structured result with `.model`, `.accuracy`, `.flops_reduction_pct`, `.arch`, `.summary()`
+- **`DnatyEvolver`** — lower-level API for custom search loops
+- **DataLoader support** — `compress()` works with `FastDataset` or any standard `torch.utils.data.DataLoader`
+- **Web UI** — React + TypeScript frontend with dashboard, benchmarks, pricing pages
+- **Production API** — FastAPI backend with auth, job queue, Stripe billing, Prometheus metrics
 
-## [5.1.0] - 2026-05-24
+### Proven results
 
-### Added
-- Evolutionary NAS search com 6.9x speedup vs EWC
-- Logit distillation in contrastive learning
-- AMP (Automatic Mixed Precision) support
-- Data augmentation (RandomCrop, RandomFlip)
-- Full CIFAR-100 benchmark suite
+| Metric | Value |
+|---|---|
+| FLOPs reduction (MNIST NAS) | **−46.5%** |
+| Accuracy retained | **98.59%** |
+| Convergence speedup vs RandomNAS | **1.6×** |
+| Less forgetting vs EWC (CL) | **6.9×** |
 
-### Benchmark Results
-- **ResNet-50**: -46.5% FLOPs, 1.6x speedup
-- **EfficientNet-B0**: -40% FLOPs
-- **MobileNetV3-Large**: -98% FLOPs (edge device)
+### Bug fixes in this release
 
-## [5.0.0] - 2026-05-01
+- Fixed `compress()` crashing with `AttributeError: count_flops` when passing a generic `nn.Module` (was only working with internal `DynamicMLP`)
 
-### Initial Release
-- Core compress() API
-- Evolutionary search algorithm
-- Pruning + quantization pipeline
-- MNIST/CIFAR-10 support
-- CLI interface
+### Roadmap
 
----
-
-### Roadmap Futuro
-- **v5.3**: Mixed precision distillation
-- **v5.4**: Multi-GPU training
-- **v6.0**: Custom architecture search
+- **v1.1**: CNN support (`arch_cnn` operators)
+- **v1.2**: Mixed precision distillation
+- **v2.0**: Multi-GPU training + custom architecture search
