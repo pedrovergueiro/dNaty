@@ -4,26 +4,53 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dnaty"
-version = "5.1.0"
-description = "Dynamic Neuro-Adaptive sYstem with evoluTionarY Learning"
+version = "5.2.1"
+description = "Evolutionary Neural Architecture Search — compress any PyTorch model with one function call"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "dNaty Authors" }]
+authors = [{ name = "Pedro Vergueiro", email = "pedrol.vergueiro@gmail.com" }]
+keywords = [
+  "neural architecture search",
+  "neuroevolution",
+  "model compression",
+  "continual learning",
+  "pytorch",
+  "evolutionary algorithms",
+  "nas",
+  "edge ml",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "Intended Audience :: Developers",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Operating System :: OS Independent",
+]
 dependencies = [
   "torch>=2.0.0",
   "torchvision>=0.15.0",
   "numpy>=1.24.0",
   "scipy>=1.10.0",
-  "matplotlib>=3.7.0",
-  "tqdm>=4.65.0"
+  "tqdm>=4.65.0",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0.0", "jupyter"]
+dev = ["pytest>=8.0.0", "matplotlib>=3.7.0", "jupyter"]
+
+[project.urls]
+Homepage     = "https://github.com/pedrovergueiroo/dNATY"
+Repository   = "https://github.com/pedrovergueiroo/dNATY"
+"Bug Tracker" = "https://github.com/pedrovergueiroo/dNATY/issues"
 
 [tool.setuptools.packages.find]
-exclude = ["tests*", "web*", "docs*"]
+where   = ["."]
+include = ["dnaty*"]
+exclude = ["tests*", "dnaty_saas*", "frontend*", "notebooks*", "scripts*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

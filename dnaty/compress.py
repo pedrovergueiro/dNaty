@@ -95,7 +95,6 @@ def compress(
     """
     import numpy as np
     from dnaty.evolution.evolver import DnatyEvolver
-    from dnaty.core.individual import Individual
 
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -124,9 +123,9 @@ def compress(
     )
 
     # Baseline: measure the original model before search
-    orig_ind    = Individual(model)
-    orig_flops  = orig_ind.count_flops()
-    orig_params = orig_ind.count_params()
+    # Use layer_sizes (already inferred) to avoid requiring DynamicMLP.count_flops()
+    orig_flops  = sum(2 * layer_sizes[i] * layer_sizes[i + 1] for i in range(len(layer_sizes) - 1))
+    orig_params = sum(p.numel() for p in model.parameters())
 
     # Disable early stopping so all generations run — with large datasets
     # accuracy plateaus fast and early stop would fire before FLOPs reduction happens.

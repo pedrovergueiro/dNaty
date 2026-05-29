@@ -13,7 +13,7 @@ Quick start:
     print(result.summary())
 """
 
-__version__ = "5.2.0"
+__version__ = "5.2.1"
 
 from dnaty.compress import compress, CompressResult
 from dnaty.evolution.evolver import DnatyEvolver
