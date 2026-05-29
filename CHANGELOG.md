@@ -2,6 +2,13 @@
 
 All notable changes to dNATY are documented here.
 
+## [1.0.1] - 2026-05-29 — License metadata fix
+
+### Fixed
+- PyPI package metadata: license was incorrectly listed as MIT; corrected to BSL-1.1
+
+---
+
 ## [1.0.0] - 2026-05-29 — First Public Release
 
 First stable release of dNATY on PyPI (`pip install dnaty`).

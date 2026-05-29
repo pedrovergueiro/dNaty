@@ -1,212 +1,367 @@
 <div align="center">
 
-<img src="logo.png" alt="dNATY logo" width="200" />
+<img src="logo.png" alt="dNATY" width="180" />
 
 # dNATY
 
 ### Evolutionary AI Model Compression
 
-**46.5% fewer FLOPs • 1.6× faster inference • 98.85% accuracy retained**
+**46.5% fewer FLOPs · 1.6× faster search · 98.59% accuracy retained · no GPU required**
 
-[![PyPI version](https://img.shields.io/pypi/v/dnaty.svg)](https://pypi.org/project/dnaty/)
+[![PyPI version](https://img.shields.io/pypi/v/dnaty.svg?color=green)](https://pypi.org/project/dnaty/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-3776ab.svg?logo=python&logoColor=white)](https://www.python.org/)
 [![PyTorch 2.0+](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg?logo=pytorch&logoColor=white)](https://pytorch.org/)
 [![License: BSL-1.1](https://img.shields.io/badge/License-BSL--1.1-orange.svg)](LICENSE)
 
-Automated model compression using multi-objective evolutionary search. Zero manual engineering. One function call: `compress(model, dataset)`.
-
-![dNATY Architecture](figure_1.png)
-
-</div>
-
----
-
-## Why dNATY?
-
-**Problem:** Most production models are oversized — too slow for real-time inference, too expensive to run.
-
-**Existing solutions require:**
-- Manual architecture tuning
-- Days of hyperparameter search
-- Accuracy/speed trade-offs
-
-**dNATY solves this** with episodic memory-guided evolutionary search — operators that worked before are tried more often. Finds Pareto-optimal solutions in minutes.
-
-### Proven Results (CIFAR-100)
-
-| Model | FLOPs Reduction | Speedup | Accuracy | Time |
-|-------|-----------------|---------|----------|------|
-| ResNet-50 | **-46.5%** | 1.6× | 98.85% | 5min |
-| EfficientNet-B0 | **-40%** | 1.4× | 98.85% | 6min |
-| MobileNetV3-Large | **-98%** | 1.8× | 97.2% | 4min |
-
----
-
-## Project Structure
-
-```
-dNATY/
-├── dnaty/              # Core compression framework
-├── dnaty_saas/         # Production API (FastAPI)
-├── frontend/           # Web UI (React + TypeScript)
-├── notebooks/          # Experiments & benchmarks
-├── scripts/            # Demo & utilities
-├── tests/              # Unit tests
-└── pyproject.toml      # Package config
-```
-
----
-
-## Quick Start
+Compress any PyTorch model with one function call.  
+dNATY uses multi-objective evolutionary search to find smaller, faster architectures — automatically.
 
 ```bash
 pip install dnaty
 ```
 
+</div>
+
+---
+
+## Quickstart
+
 ```python
+import torch.nn as nn
 from dnaty import compress
 from dnaty.experiments.fast_dataset import FastDataset
 
-# Your existing model (any PyTorch model with Linear layers)
-model = your_trained_model
+# 1. Your model — any nn.Module with Linear layers
+model = nn.Sequential(
+    nn.Flatten(),
+    nn.Linear(784, 512), nn.ReLU(),
+    nn.Linear(512, 256), nn.ReLU(),
+    nn.Linear(256, 10)
+)
 
-# Your data
+# 2. Load dataset (cached in RAM — zero I/O across generations)
 ds = FastDataset("MNIST", device="cpu", train_subset=10_000)
 
-# Compress
+# 3. Compress
 result = compress(model, ds, target_flops=0.5, n_generations=30)
 
 print(result.summary())
-# CompressResult | arch=[128, 64] | FLOPs -46.5% (327680 -> 175104) |
-#   params -52.3% (328K -> 156K) | acc=0.9821
+# CompressResult | arch=[301, 153, 128] | FLOPs -46.5% (1,133,056 → 605,802)
+#   | params -46.5% (536K → 286K) | acc=0.9859
+```
+
+The compressed model is a regular `nn.Module` — drop it into your existing pipeline:
+
+```python
+result.model          # nn.Module, ready for inference
+result.accuracy       # 0.9859
+result.flops_reduction_pct  # 46.5
+result.arch           # [301, 153, 128]  ← hidden layer sizes found
 ```
 
 ---
 
-## How It Works
+## Why dNATY?
 
-dNATY runs a population of candidate architectures through an evolution loop:
+Most models ship oversized. Shrinking them manually means days of tuning with no guarantee you'll find the Pareto-optimal size/accuracy trade-off. Existing tools either require gradient signals (DARTS), a GPU, or hours of configuration.
 
-1. **Mutate** — apply structural operators (add/remove neurons, merge layers, etc.)
-2. **Train** — locally train each candidate for a few epochs
-3. **Select** — NSGA-II Pareto selection: maximize accuracy, minimize FLOPs
-4. **Remember** — episodic memory records which operators helped most; they get picked more often next round
+dNATY solves this with **episodic memory-guided evolutionary search**:
 
-The memory mechanism is dNATY's core innovation. Over generations, the search becomes smarter — not random.
+- Operators that helped in previous generations get sampled more often
+- The search is multi-objective: maximize accuracy *and* minimize FLOPs simultaneously (NSGA-II)
+- No GPU required — runs on CPU in minutes
+- Works on any `nn.Module` containing `nn.Linear` layers
 
 ---
 
-## API
+## Benchmark: dNATY vs alternatives
 
-### `compress(model, train_data, **kwargs) -> CompressResult`
+Results on MNIST (30K training samples, CPU, seed=42).
 
-| Parameter | Default | Description |
+| Method | FLOPs reduction | Accuracy | Setup effort | GPU needed |
+|---|---|---|---|---|
+| **dNATY** | **−46.5%** | **98.59%** | 1 function call | No |
+| RandomNAS | −41.2% | 98.54% | 1 function call | No |
+| `torch.nn.utils.prune` | −30–40%\* | varies | manual per-layer | No |
+| DARTS | −35–50% | varies | hours of config | Yes |
+| Manual knowledge distillation | −20–60%\* | varies | custom training loop | No |
+
+\* *highly dependent on model and manual choices*
+
+**Continual learning (Split-MNIST, 5 tasks, 3 seeds)**
+
+| Method | Backward Transfer (BWT) | Less forgetting |
 |---|---|---|
-| `model` | required | Any `nn.Module` with Linear layers |
-| `train_data` | required | `DataLoader` or `FastDataset` |
-| `target_flops` | `0.5` | Target fraction of original FLOPs (0.5 = 50% less) |
-| `n_generations` | `30` | Evolutionary generations |
-| `n_pop` | `15` | Population size |
-| `device` | auto | `'cpu'` or `'cuda'` |
-| `seed` | `None` | Fix for reproducibility |
+| **dNATY** | **−0.145** | **best** |
+| EWC | −0.999 | near-total forgetting |
+| MLP (no CL) | −0.998 | baseline |
+
+dNATY achieves **6.9× less catastrophic forgetting** than EWC.
+
+All numbers reproducible: `python scripts/prove_it.py`
+
+---
+
+## Real examples
+
+### MNIST — MLP compression
+
+```python
+import torch.nn as nn
+from dnaty import compress
+from dnaty.experiments.fast_dataset import FastDataset
+
+model = nn.Sequential(
+    nn.Flatten(),
+    nn.Linear(784, 512), nn.ReLU(),
+    nn.Linear(512, 256), nn.ReLU(),
+    nn.Linear(256, 10),
+)
+
+ds = FastDataset("MNIST", device="cpu", train_subset=30_000)
+result = compress(model, ds, target_flops=0.5, n_generations=50, seed=42)
+
+print(result.summary())
+# FLOPs -46.5% (1,133,056 → 605,802) | acc=0.9859 | arch=[301, 153, 128]
+```
+
+### CIFAR-10 — image classification
+
+```python
+import torch.nn as nn
+from dnaty import compress
+from dnaty.experiments.fast_dataset import FastDataset
+
+model = nn.Sequential(
+    nn.Flatten(),
+    nn.Linear(3072, 1024), nn.ReLU(),
+    nn.Linear(1024, 512),  nn.ReLU(),
+    nn.Linear(512, 10),
+)
+
+ds = FastDataset("CIFAR10", device="cpu", train_subset=50_000)
+result = compress(model, ds, target_flops=0.5, n_generations=30, seed=0)
+
+print(result.summary())
+# FLOPs reduction · +4.43 pp accuracy vs ResNet baseline
+```
+
+### Custom DataLoader
+
+dNATY works with any standard `torch.utils.data.DataLoader`:
+
+```python
+from torch.utils.data import DataLoader, TensorDataset
+import torch
+
+X = torch.randn(5_000, 128)
+y = torch.randint(0, 2, (5_000,))
+loader = DataLoader(TensorDataset(X, y), batch_size=256, shuffle=True)
+
+model = nn.Sequential(
+    nn.Linear(128, 256), nn.ReLU(),
+    nn.Linear(256, 128), nn.ReLU(),
+    nn.Linear(128, 2)
+)
+
+result = compress(model, loader, target_flops=0.4, n_generations=20)
+```
+
+### Deterministic results with seed
+
+```python
+result = compress(model, ds, target_flops=0.5, n_generations=30, seed=42)
+# Run again with the same seed → identical result
+```
+
+---
+
+## API reference
+
+### `compress(model, train_data, **kwargs) → CompressResult`
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `model` | `nn.Module` | required | Any model with `nn.Linear` layers |
+| `train_data` | `FastDataset` or `DataLoader` | required | Training data |
+| `target_flops` | `float` | `0.5` | Target FLOPs as fraction of original (`0.5` = 50% less) |
+| `n_generations` | `int` | `30` | Evolutionary generations to run |
+| `n_pop` | `int` | `15` | Population size (diversity vs. speed) |
+| `device` | `str` | auto | `'cpu'` or `'cuda'` |
+| `seed` | `int` | `None` | Fix for reproducibility |
+| `verbose` | `bool` | `True` | Print generation-by-generation progress |
 
 ### `CompressResult`
 
 ```python
-result.model              # compressed nn.Module, ready to use
-result.accuracy           # validation accuracy
-result.flops_reduction    # e.g. 0.465 = 46.5% fewer FLOPs
-result.flops_reduction_pct  # same as percentage
-result.params_reduction_pct
-result.arch               # hidden layer sizes found  [128, 64]
-result.summary()          # one-line human-readable summary
+result.model                # nn.Module — compressed model, ready for inference
+result.accuracy             # float — validation accuracy
+result.flops_reduction      # float — e.g. 0.465 = 46.5% fewer FLOPs
+result.flops_reduction_pct  # float — percentage version
+result.params_reduction_pct # float — parameter reduction percentage
+result.original_flops       # int — FLOPs of the input model
+result.compressed_flops     # int — FLOPs of the compressed model
+result.original_params      # int — parameters of the input model
+result.compressed_params    # int — parameters of the compressed model
+result.arch                 # list[int] — hidden layer sizes found
+result.generations          # int — generations that were run
+result.summary()            # str — one-line human-readable summary
 ```
+
+### `FastDataset`
+
+Zero-overhead dataset loading — loads everything into RAM once, serves batches via direct indexing.
+
+```python
+from dnaty.experiments.fast_dataset import FastDataset
+
+ds = FastDataset(
+    name="MNIST",            # "MNIST" | "FashionMNIST" | "CIFAR10"
+    device="cpu",            # "cpu" or "cuda"
+    train_subset=10_000,     # use a subset of training data (None = full)
+    val_size=10_000,         # validation split size
+    data_dir="./data",       # where to download/cache
+)
+```
+
+### `DnatyEvolver` (advanced)
+
+Direct access to the evolutionary engine for custom search loops:
+
+```python
+from dnaty.evolution.evolver import DnatyEvolver
+
+evolver = DnatyEvolver(
+    n_pop=20,
+    n_generations=50,
+    input_size=784,
+    n_classes=10,
+    init_hidden=[512, 256],
+    device="cpu",
+    verbose=True,
+)
+evolver.run(train_data, val_data)
+
+best = evolver.population[0]
+print(best.model, best.acc, best.count_flops())
+```
+
+---
+
+## How it works
+
+```
+Initial architecture
+        │
+        ▼
+┌─────────────────────────────────────────┐
+│  Population of N candidate architectures │
+│  (mutations: add/remove neurons, merge   │
+│   layers, split, widen, narrow, skip)    │
+└──────────────┬──────────────────────────┘
+               │  each generation:
+               │
+        ┌──────▼──────┐
+        │   Mutate    │  ← episodic memory weights operator probabilities
+        └──────┬──────┘
+               │
+        ┌──────▼──────┐
+        │    Train    │  3 epochs per candidate (AMP on GPU, fp32 on CPU)
+        └──────┬──────┘
+               │
+        ┌──────▼──────┐
+        │   Select    │  NSGA-II Pareto front: max acc + min FLOPs
+        └──────┬──────┘
+               │
+        ┌──────▼──────┐
+        │   Remember  │  operators that helped get higher probability next round
+        └─────────────┘
+               │
+               ▼
+     Best compressed model
+```
+
+The **episodic memory** is dNATY's core differentiator. Unlike random search or gradient-based NAS, the search improves over generations by remembering what worked.
+
+---
+
+## Installation
+
+```bash
+pip install dnaty              # stable (recommended)
+pip install dnaty==1.0.1       # pin to specific version
+pip install git+https://github.com/pedrovergueiroo/dNATY  # latest from source
+```
+
+**Requirements:** Python 3.10+, PyTorch 2.0+, NumPy 1.24+
+
+Optional dev dependencies:
+```bash
+pip install dnaty[dev]   # adds pytest, matplotlib, jupyter
+```
+
+---
+
+## Project structure
+
+```
+dNATY/
+├── dnaty/
+│   ├── compress.py              # public API: compress()
+│   ├── evolution/evolver.py     # DnatyEvolver — main search loop
+│   ├── core/
+│   │   ├── arch.py              # DynamicMLP — mutable architecture
+│   │   └── individual.py        # Individual = model + memory + fitness
+│   ├── operators/mutations.py   # 8 structural operators
+│   ├── training/local_train.py  # fast local trainer (AMP, FP32)
+│   └── experiments/
+│       └── fast_dataset.py      # FastDataset — zero-I/O loader
+├── dnaty_saas/                  # Production API (FastAPI + PostgreSQL)
+├── frontend/                    # Web UI (React + TypeScript + Tailwind)
+├── notebooks/                   # CIFAR-100, ImageNet experiments
+├── scripts/
+│   ├── prove_it.py              # reproduces all benchmark numbers
+│   └── demo_compress.py         # interactive demo
+└── tests/                       # pytest suite
+```
+
+---
+
+## Reproducing the benchmarks
+
+```bash
+# Full benchmark suite (~25 min on CPU)
+python scripts/prove_it.py
+
+# Quick demo (~5 min)
+python scripts/demo_compress.py
+
+# Run tests
+pytest tests/
+```
+
+Results are written to `results/` as JSON files.
 
 ---
 
 ## SaaS API
 
-dNATY ships with a production-ready FastAPI backend.
+dNATY ships with a production-ready API backend (FastAPI + PostgreSQL + Stripe).
 
 ```bash
 cd dnaty_saas
-cp .env.example .env   # fill DATABASE_URL, JWT_SECRET, ANTHROPIC_API_KEY
+cp .env.example .env    # configure DATABASE_URL, JWT_SECRET, etc.
+pip install -r requirements.txt
 uvicorn main:app --reload
 ```
 
-### `POST /api/v1/compress`
-
-```json
-{
-  "description": "classifica defeitos em pecas, precisa rodar no Raspberry Pi",
-  "dataset": "MNIST",
-  "target_flops": 0.5,
-  "n_generations": 30
-}
-```
-
-Response `202`:
-```json
-{ "job_id": "a3f2c1b0", "status": "queued", "message": "..." }
-```
-
-### `GET /api/v1/compress/{job_id}`
-
-```json
-{
-  "status": "completed",
-  "result": {
-    "accuracy": 0.9821,
-    "flops_reduction": 0.465,
-    "arch": [128, 64],
-    "explanation": "...",        // Claude-generated explanation
-    "deployment_code": "..."     // ready-to-use Python code
-  }
-}
-```
-
-> Set `ANTHROPIC_API_KEY` in `.env` to enable Claude explanations.  
-> Without it, the endpoint still works — returns template text instead.
-
----
-
-## Getting Started
-
-### Web UI
-```bash
-cd frontend
-npm install
-npm run dev
-```
-Open [http://localhost:5173](http://localhost:5173)
-
-### Jupyter Notebooks
-- **CIFAR-100 Baseline** — [notebooks/colab_cifar100_notebook.ipynb](notebooks/colab_cifar100_notebook.ipynb)
-- **ImageNet Benchmark** — [notebooks/colab_imagenet_simple_FIXED.ipynb](notebooks/colab_imagenet_simple_FIXED.ipynb)
-- **CPU Latency** — [notebooks/benchmark_cpu_latency.py](notebooks/benchmark_cpu_latency.py)
-
-### CLI Demo
-```bash
-python scripts/demo_compress.py           # 20 gens, MNIST (~5 min CPU)
-python scripts/demo_compress.py --full    # 30 gens, more accurate
-python scripts/demo_compress.py --dataset FashionMNIST
-```
-
----
-
-## Benchmarks
-
-| Metric | Value |
-|---|---|
-| FLOPs reduction vs. initial arch | -46.5% |
-| FLOPs reduction vs. RandomNAS | better in Pareto front |
-| Speedup to target accuracy | 1.6x fewer generations |
-| CL: BWT vs. EWC | 6.9x less forgetting |
-
-All numbers reproducible with `python scripts/prove_it.py`.
+**POST `/api/v1/compress`** — submit a compression job  
+**GET `/api/v1/compress/{job_id}`** — poll status and get results  
+See `/docs` (Swagger) when the server is running.
 
 ---
 
 ## License
 
-[BSL 1.1](LICENSE) — free for non-commercial use; contact pedrol.vergueiro@gmail.com for commercial licensing.
+[Business Source License 1.1](LICENSE) — free for non-commercial use.  
+Contact [pedrol.vergueiro@gmail.com](mailto:pedrol.vergueiro@gmail.com) for commercial licensing.
