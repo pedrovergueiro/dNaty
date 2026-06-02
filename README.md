@@ -98,6 +98,8 @@ Results on MNIST (30K training samples, CPU, seed=42).
 
 dNATY achieves **6.9× less catastrophic forgetting** than EWC.
 
+![CPU Latency Comparison](results/cpu_latency/cpu_latency_comparison.png)
+
 All numbers reproducible: `python scripts/prove_it.py`
 
 ---
