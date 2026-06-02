@@ -2,6 +2,10 @@
 .env
 *.env
 
+# Local dev SQLite database (created by run_backend_local.ps1)
+*.db
+dnaty_dev.db
+
 # Python
 __pycache__/
 **/__pycache__/
@@ -63,3 +67,19 @@ dnaty_code.zip
 * copy.*
 test_write.txt
 gen_pdf_test.txt
+
+# Claude / AI generated analysis docs (não versionados)
+COMPLETE_*.md
+FINAL_*.md
+MARKET_*.md
+STRATEGIC_*.md
+STRATEGIC_*.html
+HONEST_ASSESSMENT.md
+LAUNCH_APPROVED.md
+PUBLISH.md
+README_EXECUTIVE.md
+TESTING_CHECKLIST.md
+*.pdf
+
+# Claude internal
+.claude/scheduled_tasks.lock
