@@ -68,6 +68,23 @@ dnaty_code.zip
 test_write.txt
 gen_pdf_test.txt
 
+# Arquivos internos / lixo de desenvolvimento
+CITATION.cff
+CONTRIBUTING.md
+DESIGN_NEW.md
+Dockerfile
+FRONTEND_SETUP.md
+LAUNCH_CHECKLIST.md
+check_mobilenet.py
+docker-compose.yml
+figure_1.png
+fix_mobilenet.txt
+logo_dnaty.jpeg
+prometheus.yml
+run_backend_local.ps1
+train_mobilenet_cifar100.py
+example_compress.py
+
 # Claude / AI generated analysis docs (não versionados)
 COMPLETE_*.md
 FINAL_*.md
