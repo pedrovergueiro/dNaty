@@ -63,14 +63,29 @@ result.arch           # [301, 153, 128]  ← hidden layer sizes found
 
 ## Why dNATY?
 
-Most models ship oversized. Shrinking them manually means days of tuning with no guarantee you'll find the Pareto-optimal size/accuracy trade-off. Existing tools either require gradient signals (DARTS), a GPU, or hours of configuration.
+**The problem:** most models ship larger than they need to be. That means slower inference, higher cloud bills, and models too heavy for edge devices (cameras, drones, robots). Shrinking them by hand is days of trial-and-error with no guarantee you found the best size/accuracy trade-off.
 
-dNATY solves this with **episodic memory-guided evolutionary search**:
+**What you get with dNATY:**
 
-- Operators that helped in previous generations get sampled more often
-- The search is multi-objective: maximize accuracy *and* minimize FLOPs simultaneously (NSGA-II)
-- No GPU required — runs on CPU in minutes
-- Works on any `nn.Module` containing `nn.Linear` layers
+- **Smaller, cheaper models** — ~46% fewer FLOPs on MNIST, accuracy kept (98.59%)
+- **No GPU** — the search runs on CPU in minutes, so it works in CI and on the edge hardware you already have
+- **No retraining** — point it at a model + dataset, get a deployable `nn.Module` back
+- **One function call** — `compress(model, dataset)`; export to `.pth` / `.onnx`
+
+### How is this different from pruning / quantization / distillation?
+
+Those methods shrink the model you *already have*. dNATY searches for a **smaller architecture** that does the same job — a different layer here. They're complementary, not competing:
+
+| Method | What it does | Catch |
+|---|---|---|
+| **Quantization** | Lower-precision weights (fp32→int8) | Same architecture & op count. **Stack it on top of dNATY.** |
+| **Pruning** | Zeroes individual weights | Needs sparse runtimes to actually run faster; manual tuning |
+| **Distillation** | Trains a small student model | You design the student + write the training loop |
+| **DARTS** | Gradient-based architecture search | Needs a GPU + hours of config |
+| **Random NAS** | Random architecture sampling | No memory — re-tries bad ideas |
+| **dNATY** | Evolves a smaller architecture, memory-guided | CPU-only, one call, no retraining |
+
+The engine is **episodic memory-guided evolutionary search** (NSGA-II, multi-objective): operators that helped in past generations get sampled more often, so it converges faster than random search — no gradients, no GPU.
 
 ---
 
