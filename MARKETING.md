@@ -83,7 +83,7 @@ O dashboard hoje cai direto na lista de treinos. Sugestão de primeiro acesso (e
 ## 4. Redes sociais — modelos de comentário (chamar pro perfil)
 
 > Use em posts de ML/IA de outras pessoas. Soa como contribuição, não spam.
-> Troque `@seu_perfil` pelo seu handle real.
+> Troque `@seu_perfil` pelo seu handle real. Site: **dnaty.org**
 
 **LinkedIn (técnico, gera autoridade):**
 - "Ótimo ponto sobre custo de inferência. A gente atacou isso por outro ângulo: em vez de quantizar, deixar a busca evolutiva achar uma arquitetura menor que mantém a acurácia — roda só em CPU. Comento mais sobre Edge ML no meu perfil 👉 @seu_perfil"
@@ -97,7 +97,7 @@ O dashboard hoje cai direto na lista de treinos. Sugestão de primeiro acesso (e
 - "quantização não é a única forma de encolher um modelo. dá pra procurar uma arquitetura menor direto. compartilho experimentos de Edge ML no @seu_perfil"
 
 **Reddit (r/MachineLearning, r/learnmachinelearning) — sem soar promo:**
-- "If your bottleneck is inference cost on CPU/edge, architecture search (not just quantization/pruning) is underrated. Happy to share reproducible benchmarks — DM or check my profile."
+- "If your bottleneck is inference cost on CPU/edge, architecture search (not just quantization/pruning) is underrated. Reproducible benchmarks (one script) at dnaty.org if you want to poke holes."
 
 > ⚠️ Honestidade: em comunidades técnicas (Reddit/HN) auto-promoção explícita é mal vista.
 > Contribua com valor real primeiro; o link pro perfil vem como consequência.
@@ -153,7 +153,7 @@ O dashboard hoje cai direto na lista de treinos. Sugestão de primeiro acesso (e
 ### Descrição do canal
 > 🤖 Machine Learning na prática, em português.
 > Notícias que importam · snippets de código que você usa hoje · dicas pra rodar IA sem GPU cara.
-> Sem enrolação. Por @seu_perfil / Vergueiro Tech.
+> Sem enrolação. Por @seu_perfil / Vergueiro Tech · dnaty.org
 
 ### Cadência sugerida
 - **Seg:** notícia/paper da semana (1 parágrafo + por que importa)
