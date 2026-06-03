@@ -196,6 +196,25 @@ O dashboard hoje cai direto na lista de treinos. Sugestão de primeiro acesso (e
 
 ---
 
+## 8. Dados reais para citar (medidos — ver BENCHMARKS_REAL.md)
+
+> Use SÓ estes números em posts/templates. Todos medidos, 6 cores CPU, held-out acc.
+
+**Defensáveis (compressão forte, modelo superdimensionado):**
+- MNIST: **−50.4% FLOPs**, 97.0% acc, ~4 min
+- Fashion-MNIST: **−54.6% FLOPs**, 86.4% acc, ~4 min
+- UCI Wine Quality: −78.4% FLOPs (modelo enorme demais p/ a tarefa)
+
+**A nuance honesta (sempre incluir quando questionado):**
+> "A compressão depende de quão inchado está o modelo. Superdimensionado → −50%+.
+> Já enxuto (ex: UCI Adult −2.7%, Covertype −1.5%) → corta pouco, de propósito.
+> Hoje é MLP-only; imagem RGB via conv net é trabalho futuro."
+
+**NUNCA** citar "−50% em qualquer modelo" — é falso e te queima. O claim certo é
+"acha o tamanho certo": corte grande no inchado, corte pequeno no que já é eficiente.
+
+---
+
 ## 7. Checklist de execução
 
 - [x] Landing: seção "How it's different" (vs pruning/quant/distillation/NAS) — **feito**

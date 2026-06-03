@@ -117,6 +117,21 @@ dNATY achieves **6.9× less catastrophic forgetting** than EWC.
 
 All numbers reproducible: `python scripts/prove_it.py`
 
+### Measured across real datasets
+
+Compression depends on how oversized your model is — dNATY finds the right size, it doesn't force a fixed cut. Measured on CPU (held-out accuracy):
+
+| Dataset | FLOPs ↓ | Accuracy | Note |
+|---|---|---|---|
+| MNIST | **−50.4%** | 97.0% | oversized MLP → big cut |
+| Fashion-MNIST | **−54.6%** | 86.4% | oversized MLP → big cut |
+| UCI Wine Quality | −78.4% | 63.7% | extra capacity useless → shrinks hard |
+| UCI Adult / Census | −2.7% | 84.0% | already lean → small cut (correct) |
+| UCI Covertype | −1.5% | 78.1% | already lean → small cut (correct) |
+| CIFAR-10 (MLP) | −1.2% | 46.4% | MLP unfit for RGB — conv NAS is WIP |
+
+Full table, config, and reproduction: [BENCHMARKS_REAL.md](BENCHMARKS_REAL.md).
+
 ---
 
 ## Real examples
