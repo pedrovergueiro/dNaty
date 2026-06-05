@@ -14,13 +14,14 @@ OPERATORS = [
     "add_neuron",
     "remove_neuron",
     "add_skip",
+    "add_residual",       # residual identidade (in == out, sem projeção)
     "change_activation",
     "split_layer",
     "merge_layers",
     "prune_connections",
     "duplicate_module",
-    "add_conv_block",   # placeholder para MLP — adiciona camada
-    "depthwise_sep",    # placeholder para MLP — adiciona camada eficiente
+    "add_conv_block",     # adiciona camada bottleneck (metade do último hidden)
+    "depthwise_sep",      # bottleneck estreito (1/4) — decomposição MLP-DW
 ]
 
 
@@ -85,6 +86,37 @@ def remove_neuron(ind: Individual) -> tuple[Individual, bool]:
     sizes[layer_idx] = max(4, sizes[layer_idx] - n_remove)
     new_ind = _rebuild_from_sizes(ind, sizes, acts)
     new_ind.last_op = "remove_neuron"
+    return new_ind, True
+
+
+def add_residual(ind: Individual) -> tuple[Individual, bool]:
+    """Residual identidade entre camadas de mesmo tamanho — sem projeção.
+
+    Diferente de add_skip (que projeta dimensões diferentes), este operador
+    só conecta camadas com in_features == out_features: out = layer(x) + x.
+    Implementação ResNet pura, ~zero FLOPs extras.
+    """
+    sizes = ind.model.layer_sizes
+    if len(sizes) < 3:
+        return ind, False
+    # Encontra pares (src, dst) consecutivos com mesmo tamanho
+    # sizes[k] == sizes[k+1] → out do bloco k-1 == out do bloco k → residual sem proj
+    candidates = [
+        (k, k + 1)
+        for k in range(len(sizes) - 1)
+        if sizes[k] == sizes[k + 1]
+    ]
+    if not candidates:
+        return ind, False
+    try:
+        device = next(ind.model.parameters()).device
+    except StopIteration:
+        device = torch.device("cpu")
+    src, dst = candidates[np.random.randint(len(candidates))]
+    new_ind = ind.clone()
+    # proj=None sinaliza residual identidade puro no forward
+    new_ind.model.skip_connections.append((src, dst, None))
+    new_ind.last_op = "add_residual"
     return new_ind, True
 
 
@@ -221,13 +253,25 @@ def add_conv_block(ind: Individual) -> tuple[Individual, bool]:
 
 
 def depthwise_sep(ind: Individual) -> tuple[Individual, bool]:
-    """Op 10: insere gargalo estreito (last//4) — representa compressao depthwise em MLP."""
+    """Decomposição bottleneck MLP — análogo a conv depthwise+pointwise para MLPs.
+
+    Substitui a última camada oculta L→L por dois estágios:
+      L → bottleneck (L//4, canal estreito) → L
+    Economiza FLOPs ~75% nessa camada vs Linear(L, L) direto, mantendo
+    a capacidade representacional com o estágio de expansão.
+    """
     sizes = list(ind.model.layer_sizes)
     acts = list(ind.model.activations)
-    last = sizes[-1]
-    narrow = max(8, last // 4)
-    new_sizes = sizes + [narrow]
-    new_acts = acts + ["relu"]
+    if len(sizes) < 2:
+        return ind, False
+    # Insere bottleneck antes da última camada oculta
+    last_hidden_idx = len(sizes) - 1   # índice em sizes do último hidden
+    last_hidden = sizes[last_hidden_idx]
+    bottleneck = max(8, last_hidden // 4)
+    # Adiciona o estágio estreito: ..., last_hidden → bottleneck → last_hidden
+    new_sizes = sizes[:last_hidden_idx] + [bottleneck] + sizes[last_hidden_idx:]
+    n_hidden = len(new_sizes) - 2
+    new_acts = (acts + ["relu"] * 10)[:n_hidden]
     new_ind = _rebuild_from_sizes(ind, new_sizes, new_acts)
     new_ind.last_op = "depthwise_sep"
     return new_ind, True
@@ -237,6 +281,7 @@ OPERATOR_FNS = {
     "add_neuron": add_neuron,
     "remove_neuron": remove_neuron,
     "add_skip": add_skip,
+    "add_residual": add_residual,
     "change_activation": change_activation,
     "split_layer": split_layer,
     "merge_layers": merge_layers,

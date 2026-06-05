@@ -112,27 +112,36 @@ class DynamicCNN(nn.Module):
     def count_params(self) -> int:
         return sum(p.numel() for p in self.parameters())
 
-    def count_flops(self) -> int:
-        """Estimativa de FLOPs para input 32×32."""
-        flops = 0
-        h, w = 32, 32
-        for cfg in self.conv_configs:
-            k = cfg.get("kernel", 3)
-            s = cfg.get("stride", 1)
-            if cfg["type"] == "depthwise":
-                # Depthwise: k²×C_in×H×W + C_in×C_out×H×W (pointwise)
-                flops += k * k * cfg["in_ch"] * (h // s) * (w // s)
-                flops += cfg["in_ch"] * cfg["out_ch"] * (h // s) * (w // s)
-            else:
-                flops += k * k * cfg["in_ch"] * cfg["out_ch"] * (h // s) * (w // s)
-            h, w = h // s, w // s
-        last_ch = self.conv_configs[-1]["out_ch"] if self.conv_configs else self.in_channels
-        prev = last_ch
-        for sz in self.fc_sizes:
-            flops += 2 * prev * sz
-            prev = sz
-        flops += 2 * prev * self.n_classes
-        return flops
+    def count_flops(self, input_hw: int = 32) -> int:
+        """FLOPs for one forward pass. Uses hook-based counter when available.
+
+        Args:
+            input_hw: Spatial size (square) of the input image. Default 32 for CIFAR-10.
+        """
+        try:
+            from dnaty.utils.flops_counter import count_flops as _hook_count
+            return _hook_count(self, (self.in_channels, input_hw, input_hw))
+        except Exception:
+            # Fallback: analytical formula (still correct for standard configs)
+            flops = 0
+            h, w = input_hw, input_hw
+            for cfg in self.conv_configs:
+                k = cfg.get("kernel", 3)
+                s = cfg.get("stride", 1)
+                hout, wout = h // s, w // s
+                if cfg["type"] == "depthwise":
+                    flops += 2 * k * k * cfg["in_ch"] * hout * wout
+                    flops += 2 * cfg["in_ch"] * cfg["out_ch"] * hout * wout
+                else:
+                    flops += 2 * k * k * cfg["in_ch"] * cfg["out_ch"] * hout * wout
+                h, w = hout, wout
+            last_ch = self.conv_configs[-1]["out_ch"] if self.conv_configs else self.in_channels
+            prev = last_ch
+            for sz in self.fc_sizes:
+                flops += 2 * prev * sz
+                prev = sz
+            flops += 2 * prev * self.n_classes
+            return flops
 
     def is_valid(self) -> bool:
         return len(self.conv_configs) >= 1 and all(

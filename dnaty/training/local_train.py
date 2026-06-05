@@ -78,9 +78,9 @@ def local_train(
         n_batches = 0
 
         if is_fast:
-            # FastDataset v5: múltiplos batches por epoch cobrindo o dataset completo
-            # Com 60K amostras e batch=512: 117 batches por epoch — gradiente estável
-            n_batches_per_epoch = max(1, loader.n_train // batch_size)
+            # ceil division: 1000 samples / 512 batch → 2 batches, not 1
+            import math
+            n_batches_per_epoch = max(1, math.ceil(loader.n_train / batch_size))
             batches = [loader.get_train_batch(batch_size) for _ in range(n_batches_per_epoch)]
         else:
             batches = loader
@@ -146,7 +146,11 @@ def evaluate(
         model = model.to(device)
         ind.model = model
 
-    model.eval()
+    # Use train() mode so BatchNorm applies per-batch statistics instead of
+    # poorly-calibrated running stats (which need 10+ batches to converge at
+    # momentum=0.1). Chunk size 2048 is large enough for accurate batch stats.
+    # DynamicMLP has no Dropout, so train/eval only differs on BatchNorm.
+    model.train()
     criterion = nn.CrossEntropyLoss(reduction="sum")
     correct = 0
     total = 0

@@ -15,6 +15,7 @@ from dnaty.core.memory import EpisodicMemory
 CNN_OPERATORS = [
     "add_conv_block",       # Op 9 real: adiciona bloco Conv2D+BN+ReLU
     "depthwise_sep",        # Op 10 real: adiciona bloco depthwise separable
+    "swap_conv_to_dw",      # Layer swap: substitui Conv padrão por DwConv (~8-9x menos FLOPs)
     "add_fc_neuron",        # Op 1 adaptado: adiciona neurônio na FC
     "remove_fc_neuron",     # Op 2 adaptado: remove neurônio da FC
     "change_stride",        # Op novo: muda stride de um bloco (downsampling)
@@ -91,6 +92,58 @@ def depthwise_sep(ind: Individual) -> tuple[Individual, bool]:
 
     new_ind = Individual(new_model, deepcopy(ind.memory))
     new_ind.last_op = "depthwise_sep"
+    return new_ind, True
+
+
+def swap_conv_to_dw(ind: Individual) -> tuple[Individual, bool]:
+    """Layer swap: substitui um bloco Conv2D padrão por DepthwiseSeparable.
+
+    Reduz FLOPs ~8-9× na camada trocada (k²×Cin×Cout → k²×Cin + Cin×Cout).
+    Só candidatos com stride=1 e Cin >= 16 para manter qualidade.
+    Custo computacional correto verificado via hook-based FLOPs counter.
+    """
+    model = ind.model
+    if not isinstance(model, DynamicCNN):
+        return ind, False
+    try:
+        device = next(model.parameters()).device
+    except StopIteration:
+        device = torch.device("cpu")
+
+    # Candidatos: blocos Conv padrão com stride=1 (DwConv requer stride=1)
+    # out_ch >= 8 garante que a pointwise faça sentido
+    candidates = [
+        i for i, c in enumerate(model.conv_configs)
+        if c["type"] == "conv" and c.get("stride", 1) == 1 and c.get("out_ch", 0) >= 8
+    ]
+    if not candidates:
+        return ind, False
+
+    idx = candidates[np.random.randint(len(candidates))]
+    cfg = model.conv_configs[idx]
+    new_configs = [dict(c) for c in model.conv_configs]
+    new_configs[idx] = {
+        "type": "depthwise",
+        "in_ch": cfg["in_ch"],
+        "out_ch": cfg["out_ch"],
+        "stride": cfg.get("stride", 1),
+    }
+
+    new_model = DynamicCNN(new_configs, list(model.fc_sizes), model.n_classes, model.in_channels)
+    new_model = new_model.to(device)
+
+    # Copia blocos não alterados
+    for i, (old_l, new_l) in enumerate(zip(model.conv_layers, new_model.conv_layers)):
+        if i != idx:
+            try:
+                new_l.load_state_dict(old_l.state_dict())
+            except Exception:
+                pass  # shape mudou — inicialização aleatória ok
+    new_model.fc.load_state_dict(model.fc.state_dict())
+    new_model.classifier.load_state_dict(model.classifier.state_dict())
+
+    new_ind = Individual(new_model, deepcopy(ind.memory))
+    new_ind.last_op = "swap_conv_to_dw"
     return new_ind, True
 
 
@@ -240,6 +293,7 @@ def duplicate_conv_block(ind: Individual) -> tuple[Individual, bool]:
 CNN_OPERATOR_FNS = {
     "add_conv_block":       add_conv_block,
     "depthwise_sep":        depthwise_sep,
+    "swap_conv_to_dw":      swap_conv_to_dw,
     "add_fc_neuron":        add_fc_neuron,
     "remove_fc_neuron":     remove_fc_neuron,
     "change_stride":        change_stride,

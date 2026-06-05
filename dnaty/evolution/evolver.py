@@ -266,7 +266,8 @@ class CnnEvolver(DnatyEvolver):
 
     def _make_individual(self) -> Individual:
         from dnaty.core.arch_cnn import DynamicCNN
-        model = DynamicCNN()  # config padrão: 3 blocos conv para CIFAR-10
+        # Use self.n_classes — critical for datasets that are not CIFAR-10 (10 classes)
+        model = DynamicCNN(n_classes=self.n_classes)
         return Individual(model, EpisodicMemory(decay_gamma=self.memory_gamma))
 
     def _mutate_population(self, population: list[Individual]) -> list[Individual]:

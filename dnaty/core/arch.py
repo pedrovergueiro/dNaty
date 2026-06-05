@@ -79,6 +79,10 @@ class DynamicMLP(nn.Module):
         for i in range(len(self.layer_sizes) - 1):
             flops += 2 * self.layer_sizes[i] * self.layer_sizes[i + 1]
         flops += 2 * self.layer_sizes[-1] * self.n_classes
+        # skip connection projections (Linear layers not in layer_sizes)
+        for _src, _dst, proj in self.skip_connections:
+            if proj is not None:
+                flops += 2 * proj.in_features * proj.out_features
         return flops
 
     def is_valid(self) -> bool:
