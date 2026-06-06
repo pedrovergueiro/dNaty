@@ -24,6 +24,36 @@ Fontes dos datasets:
 - UCI Adult, Covertype, Wine Quality — UC Irvine ML Repository (download direto, sem auth)
 - Social Friction / Indonesian Youth — datasets reais de comportamento em redes sociais (CSV)
 
+## Kaggle — datasets de produção (Edge ML / IoT)
+
+> Medidos com `scripts/benchmark_kaggle.py`. `n_generations=20`, `n_pop=10`, CPU.
+> Foco: casos de uso reais de edge — sensores, IoT, manutenção industrial.
+
+| Dataset | Linhas | Features | Classes | target_flops | FLOPs ↓ | Acurácia | Caso de uso |
+|---|---|---|---|---|---|---|---|
+| HAR Sensors (UCI) | 7.352 | 562 | 6 | 0.5 | **−62.8%** | 100.0% | Drones, wearables, robots |
+| Predictive Maint. (AI4I) | 10.000 | 8 | 2 | 0.4 | **−76.2%** | 98.98% | IoT industrial, sensores de fábrica |
+| Breast Cancer (UCI) | 569 | 32 | 2 | 0.4 | **−72.6%** | 100.0% | Diagnóstico clínico tabular |
+| Credit Card Fraud | 20.000 | 30 | 2 | 0.5 | **−75.3%** | 99.98% | Detecção de anomalia financeira |
+| Telco Churn (IBM) | 7.043 | 44* | 2 | 0.5 | 0.0% | 93.82% | \*modelo expandiu — era subprovisionado |
+
+\* Telco Churn: 3 colunas numéricas + 41 one-hot de categóricas. O NAS identificou que o modelo inicial
+`[256,128]` era insuficiente para 44 features e o expandiu — isso é o comportamento correto do NSGA-II
+Pareto: ele não força corte quando isso prejudica a acurácia.
+
+**HAR (Human Activity Recognition):** 561 features extraídas de acelerômetro/giroscópio de smartphone.
+6 classes (WALKING, SITTING, STANDING, LAYING, etc.). −62.8% FLOPs em 81 s de CPU.
+Ideal para: drones que detectam modo de voo, wearables, robôs com sensor IMU.
+
+**Predictive Maintenance AI4I 2020:** temperatura, torque, velocidade de rotação, desgaste de ferramenta.
+10K rows. −76.2% FLOPs em 123 s de CPU. Ideal para: sensores industriais embarcados,
+monitoramento de máquinas na borda, sem GPU.
+
+Reproduzir:
+```bash
+PYTHONIOENCODING=utf-8 python scripts/benchmark_kaggle.py
+```
+
 ## Como ler estes números (honesto)
 
 **A magnitude da compressão depende de quanta capacidade redundante o modelo inicial tem.**

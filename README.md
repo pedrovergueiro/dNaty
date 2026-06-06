@@ -135,6 +135,8 @@ Compression depends on how oversized your model is — dNATY finds the right siz
 | UCI Wine Quality | −78.4% | 63.7% | extra capacity useless → shrinks hard |
 | UCI Adult / Census | −2.7% | 84.0% | already lean → small cut (correct) |
 | UCI Covertype | −1.5% | 78.1% | already lean → small cut (correct) |
+| HAR Sensors (accelerometer/gyroscope) | −62.8% | 100.0% | 562 sensor features · drones, robots, wearables |
+| Predictive Maintenance (AI4I) | −76.2% | 98.98% | 8 industrial sensor features · factory IoT |
 | CIFAR-10 (MLP) | −1.2% | 46.4% | MLP unfit for RGB — conv NAS is WIP |
 
 Full table, config, and reproduction: [BENCHMARKS_REAL.md](BENCHMARKS_REAL.md).
