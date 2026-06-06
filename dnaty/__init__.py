@@ -37,7 +37,7 @@ Quick start:
     print(f"Total FLOPs: {count_flops(model, input_shape=(784,)):,}")
 """
 
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 
 from dnaty.compress import compress, compress_cnn, load, CompressResult
 from dnaty.evolution.evolver import DnatyEvolver, CnnEvolver
