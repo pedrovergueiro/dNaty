@@ -53,10 +53,17 @@ print(result.summary())
 The compressed model is a regular `nn.Module` — drop it into your existing pipeline:
 
 ```python
-result.model          # nn.Module, ready for inference
-result.accuracy       # 0.9859
-result.flops_reduction_pct  # 46.5
-result.arch           # [301, 153, 128]  ← hidden layer sizes found
+result.model                  # nn.Module, ready for inference
+result.accuracy               # 0.9859
+result.flops_reduction_pct    # 46.5
+result.arch                   # [301, 153, 128]  ← hidden layer sizes found
+
+# Save / reload
+result.save("compressed.pt")
+result = dnaty.load("compressed.pt")
+
+# Export to ONNX for edge deployment
+result.export_onnx("model.onnx", input_shape=(784,))
 ```
 
 ---
@@ -206,113 +213,6 @@ result = compress(model, ds, target_flops=0.5, n_generations=30, seed=42)
 # Run again with the same seed → identical result
 ```
 
----
-
-## API reference
-
-### `compress(model, train_data, **kwargs) → CompressResult`
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `model` | `nn.Module` | required | Any model with `nn.Linear` layers |
-| `train_data` | `FastDataset` or `DataLoader` | required | Training data |
-| `target_flops` | `float` | `0.5` | Target FLOPs as fraction of original (`0.5` = 50% less) |
-| `n_generations` | `int` | `30` | Evolutionary generations to run |
-| `n_pop` | `int` | `15` | Population size (diversity vs. speed) |
-| `device` | `str` | auto | `'cpu'` or `'cuda'` |
-| `seed` | `int` | `None` | Fix for reproducibility |
-| `verbose` | `bool` | `True` | Print generation-by-generation progress |
-
-### `CompressResult`
-
-```python
-result.model                # nn.Module — compressed model, ready for inference
-result.accuracy             # float — validation accuracy
-result.flops_reduction      # float — e.g. 0.465 = 46.5% fewer FLOPs
-result.flops_reduction_pct  # float — percentage version
-result.params_reduction_pct # float — parameter reduction percentage
-result.original_flops       # int — FLOPs of the input model
-result.compressed_flops     # int — FLOPs of the compressed model
-result.original_params      # int — parameters of the input model
-result.compressed_params    # int — parameters of the compressed model
-result.arch                 # list[int] — hidden layer sizes found
-result.generations          # int — generations that were run
-result.summary()            # str — one-line human-readable summary
-```
-
-### `FastDataset`
-
-Zero-overhead dataset loading — loads everything into RAM once, serves batches via direct indexing.
-
-```python
-from dnaty.experiments.fast_dataset import FastDataset
-
-ds = FastDataset(
-    name="MNIST",            # "MNIST" | "FashionMNIST" | "CIFAR10"
-    device="cpu",            # "cpu" or "cuda"
-    train_subset=10_000,     # use a subset of training data (None = full)
-    val_size=10_000,         # validation split size
-    data_dir="./data",       # where to download/cache
-)
-```
-
-### `DnatyEvolver` (advanced)
-
-Direct access to the evolutionary engine for custom search loops:
-
-```python
-from dnaty.evolution.evolver import DnatyEvolver
-
-evolver = DnatyEvolver(
-    n_pop=20,
-    n_generations=50,
-    input_size=784,
-    n_classes=10,
-    init_hidden=[512, 256],
-    device="cpu",
-    verbose=True,
-)
-evolver.run(train_data, val_data)
-
-best = evolver.population[0]
-print(best.model, best.acc, best.count_flops())
-```
-
----
-
-## How it works
-
-```
-Initial architecture
-        │
-        ▼
-┌─────────────────────────────────────────┐
-│  Population of N candidate architectures │
-│  (mutations: add/remove neurons, merge   │
-│   layers, split, widen, narrow, skip)    │
-└──────────────┬──────────────────────────┘
-               │  each generation:
-               │
-        ┌──────▼──────┐
-        │   Mutate    │  ← episodic memory weights operator probabilities
-        └──────┬──────┘
-               │
-        ┌──────▼──────┐
-        │    Train    │  3 epochs per candidate (AMP on GPU, fp32 on CPU)
-        └──────┬──────┘
-               │
-        ┌──────▼──────┐
-        │   Select    │  NSGA-II Pareto front: max acc + min FLOPs
-        └──────┬──────┘
-               │
-        ┌──────▼──────┐
-        │   Remember  │  operators that helped get higher probability next round
-        └─────────────┘
-               │
-               ▼
-     Best compressed model
-```
-
 The **episodic memory** is dNATY's core differentiator. Unlike random search or gradient-based NAS, the search improves over generations by remembering what worked.
 
 ---
@@ -321,7 +221,7 @@ The **episodic memory** is dNATY's core differentiator. Unlike random search or 
 
 ```bash
 pip install dnaty              # stable (recommended)
-pip install dnaty==1.0.1       # pin to specific version
+pip install dnaty==1.1.0       # pin to specific version
 pip install git+https://github.com/pedrovergueiroo/dNATY  # latest from source
 ```
 
