@@ -45,7 +45,7 @@ try:
     from dnaty.analysis.stats import summary_stats, paired_ttest
 except ImportError:
     print("⚠️  dNATY não encontrado. Execute antes no Colab:")
-    print("!git clone https://github.com/pedrovergueiroo/dNATY.git /content/dNATY")
+    print("!git clone https://github.com/pedrovergueiro/dNATY.git /content/dNATY")
     sys.exit(1)
 
 # ═══════════════════════════════════════════════════════════════

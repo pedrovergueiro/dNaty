@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="logo.png" alt="dNATY" width="180" />
+<img src="assets/logo.png" alt="dNATY" width="180" />
 
 # dNATY
 
@@ -224,7 +224,7 @@ The **episodic memory** is dNATY's core differentiator. Unlike random search or 
 ```bash
 pip install dnaty              # stable (recommended)
 pip install dnaty==1.1.0       # pin to specific version
-pip install git+https://github.com/pedrovergueiroo/dNATY  # latest from source
+pip install git+https://github.com/pedrovergueiro/dNATY  # latest from source
 ```
 
 **Requirements:** Python 3.10+, PyTorch 2.0+, NumPy 1.24+

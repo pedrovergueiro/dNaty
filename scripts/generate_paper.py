@@ -174,7 +174,7 @@ def build_paper():
     story.append(Paragraph("Pedro Vergueiro", s["authors"]))
     story.append(Paragraph(
         "Vergueiro Tech &nbsp;·&nbsp; pedrol.vergueiro@gmail.com &nbsp;·&nbsp; "
-        "github.com/pedrovergueiroo/dNATY",
+        "github.com/pedrovergueiro/dNATY",
         s["affil"],
     ))
     story.append(hr(4))

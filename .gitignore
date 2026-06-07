@@ -99,4 +99,4 @@ TESTING_CHECKLIST.md
 *.pdf
 
 # Claude internal
-.claude/scheduled_tasks.lock
+.claude/
