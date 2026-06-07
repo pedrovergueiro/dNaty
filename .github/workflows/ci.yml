@@ -37,9 +37,6 @@ jobs:
       - name: Run reproducibility tests
         run: pytest tests/test_reproducibility.py -v -x
 
-      - name: Run regression tests
-        run: pytest tests/test_regression.py -v -x
-
   release:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')

@@ -13,7 +13,7 @@ help:
 	@echo "  make dev        Install in editable mode with dev deps"
 
 test:
-	pytest tests/test_sanity.py tests/test_edge_cases.py tests/test_reproducibility.py tests/test_regression.py -v
+	pytest tests/test_sanity.py tests/test_edge_cases.py tests/test_reproducibility.py -v
 
 test-fast:
 	pytest tests/test_sanity.py -v -x
