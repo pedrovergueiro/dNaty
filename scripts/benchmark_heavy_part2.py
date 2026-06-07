@@ -73,6 +73,10 @@ def build_model(input_size, n_classes):
         hidden = [256, 128, 64]
     else:
         hidden = [128, 64, 32]
+    # Scale up capacity for harder multi-class problems so NAS has real fat to cut
+    if n_classes > 2:
+        scale = min(3.0, 1.0 + 0.2 * (n_classes - 2))
+        hidden = [max(16, int(h * scale)) for h in hidden]
     layers = []
     prev = input_size
     for h in hidden:

@@ -79,7 +79,7 @@ def make_loaders(X, y, batch=512, split=0.8, seed=42):
 
 
 def build_model(input_size: int, n_classes: int) -> nn.Module:
-    """Modelo base escalado ao input_size — tem gordura real para o NAS comprimir."""
+    """Modelo base escalado ao input_size e n_classes — tem gordura real para o NAS comprimir."""
     if input_size >= 500:
         hidden = [1024, 512, 256]
     elif input_size >= 150:
@@ -88,6 +88,10 @@ def build_model(input_size: int, n_classes: int) -> nn.Module:
         hidden = [256, 128, 64]
     else:
         hidden = [128, 64, 32]
+    # Scale up capacity for harder multi-class problems so NAS has real fat to cut
+    if n_classes > 2:
+        scale = min(3.0, 1.0 + 0.2 * (n_classes - 2))
+        hidden = [max(16, int(h * scale)) for h in hidden]
     layers: list[nn.Module] = []
     prev = input_size
     for h in hidden:

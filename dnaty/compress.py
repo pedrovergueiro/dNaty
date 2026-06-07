@@ -15,6 +15,7 @@ Usage:
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional, Callable
+import warnings
 
 import torch
 import torch.nn as nn
@@ -28,7 +29,7 @@ class CompressResult:
     original_params: int
     compressed_params: int
     accuracy: float
-    flops_reduction: float      # e.g. 0.465 = 46.5% less FLOPs
+    flops_reduction: float      # positive = compressed, negative = model grew
     generations: int
     arch: list[int] = field(default_factory=list)   # hidden layer sizes found
 
@@ -42,12 +43,19 @@ class CompressResult:
             return 0.0
         return (1.0 - self.compressed_params / self.original_params) * 100
 
+    @property
+    def model_grew(self) -> bool:
+        return self.flops_reduction < 0
+
     def summary(self) -> str:
+        def _fmt(pct: float) -> str:
+            sign = "↓" if pct > 0 else "↑" if pct < 0 else "="
+            return f"{sign}{abs(pct):.1f}%"
         return (
             f"CompressResult | arch={self.arch} | "
-            f"FLOPs -{self.flops_reduction_pct:.1f}% "
+            f"FLOPs {_fmt(self.flops_reduction_pct)} "
             f"({self.original_flops:,} -> {self.compressed_flops:,}) | "
-            f"params -{self.params_reduction_pct:.1f}% "
+            f"params {_fmt(self.params_reduction_pct)} "
             f"({self.original_params:,} -> {self.compressed_params:,}) | "
             f"acc={self.accuracy:.4f}"
         )
@@ -321,17 +329,29 @@ def compress(
         compressed_flops  = best.count_flops()
         compressed_params = best.count_params()
 
-    return CompressResult(
+    flops_reduction = 1.0 - compressed_flops / max(orig_flops, 1)
+    result = CompressResult(
         model=best.model,
         original_flops=orig_flops,
         compressed_flops=compressed_flops,
         original_params=orig_params,
         compressed_params=compressed_params,
         accuracy=best.acc,
-        flops_reduction=max(0.0, 1.0 - compressed_flops / max(orig_flops, 1)),
+        flops_reduction=flops_reduction,
         generations=n_generations,
         arch=arch,
     )
+    if result.model_grew:
+        warnings.warn(
+            f"dNATY: compressed model is LARGER than the original "
+            f"(FLOPs changed {result.flops_reduction_pct:+.1f}%, "
+            f"params changed {result.params_reduction_pct:+.1f}%). "
+            f"This usually means the input model was undersized for the task complexity. "
+            f"Try passing a larger initial model (more hidden units).",
+            UserWarning,
+            stacklevel=2,
+        )
+    return result
 
 
 def compress_cnn(
@@ -434,17 +454,29 @@ def compress_cnn(
     compressed_flops  = best.count_flops()
     compressed_params = best.count_params()
 
-    return CompressResult(
+    flops_reduction = 1.0 - compressed_flops / max(orig_flops, 1)
+    result = CompressResult(
         model=best.model,
         original_flops=orig_flops,
         compressed_flops=compressed_flops,
         original_params=orig_params,
         compressed_params=compressed_params,
         accuracy=best.acc,
-        flops_reduction=max(0.0, 1.0 - compressed_flops / max(orig_flops, 1)),
+        flops_reduction=flops_reduction,
         generations=n_generations,
         arch=[],
     )
+    if result.model_grew:
+        warnings.warn(
+            f"dNATY: compressed model is LARGER than the original "
+            f"(FLOPs changed {result.flops_reduction_pct:+.1f}%, "
+            f"params changed {result.params_reduction_pct:+.1f}%). "
+            f"This usually means the input model was undersized for the task complexity. "
+            f"Try passing a larger initial model (more hidden units).",
+            UserWarning,
+            stacklevel=2,
+        )
+    return result
 
 
 def compress_with_backbone(
