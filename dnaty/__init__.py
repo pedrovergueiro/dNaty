@@ -39,7 +39,7 @@ Quick start:
 
 __version__ = "1.1.1"
 
-from dnaty.compress import compress, compress_cnn, load, CompressResult
+from dnaty.compress import compress, compress_cnn, compress_with_backbone, prune_conv_channels, load, CompressResult
 from dnaty.evolution.evolver import DnatyEvolver, CnnEvolver
 from dnaty.monitoring import DriftDetector, ProductionTracker
 from dnaty.utils.flops_counter import count_flops, flops_by_layer
@@ -48,6 +48,8 @@ __all__ = [
     # Core API
     "compress",
     "compress_cnn",
+    "compress_with_backbone",
+    "prune_conv_channels",
     "load",
     "CompressResult",
     # Evolvers

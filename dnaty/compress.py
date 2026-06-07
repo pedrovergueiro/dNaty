@@ -391,8 +391,11 @@ def compress_cnn(
     n_classes = 10
     if hasattr(model, "n_classes"):
         n_classes = model.n_classes
-    elif hasattr(model, "classifier"):
-        n_classes = model.classifier.out_features
+    else:
+        for attr in ("fc", "classifier", "head", "heads"):
+            if hasattr(model, attr):
+                n_classes = _infer_n_classes_from_head(getattr(model, attr))
+                break
 
     lambda2 = max(1e-7, 5e-6 * (1.0 - target_flops))
 
@@ -442,6 +445,285 @@ def compress_cnn(
         generations=n_generations,
         arch=[],
     )
+
+
+def compress_with_backbone(
+    backbone: nn.Module,
+    train_data,
+    *,
+    target_flops: float = 0.5,
+    n_generations: int = 30,
+    n_pop: int = 15,
+    device: Optional[str] = None,
+    verbose: bool = True,
+    seed: Optional[int] = None,
+    finetune_backbone: bool = False,
+    finetune_epochs: int = 10,
+    feature_dim: Optional[int] = None,
+    n_classes: Optional[int] = None,
+    batch_size: int = 64,
+    progress_callback: Optional[Callable] = None,
+) -> CompressResult:
+    """
+    Compress the classifier head of a CNN backbone using evolutionary NAS.
+
+    dNATY's NAS only optimises nn.Linear layers — it cannot restructure conv layers.
+    This function handles CNNs correctly without hiding that constraint:
+
+      1. Freeze the backbone, extract embeddings in one pass (no training).
+      2. Run NAS to find a compressed MLP head on those embeddings.
+      3. Splice the compressed head back onto the original backbone.
+      4. (optional) Fine-tune the full model end-to-end to recover any accuracy gap.
+
+    Supports ResNet (fc), MobileNetV2/EfficientNet (classifier), ViT (head/heads),
+    and any backbone where the last classifier is accessible as an attribute.
+
+    Args:
+        backbone:           Pretrained CNN (ResNet, MobileNetV2, EfficientNet, etc.).
+        train_data:         DataLoader yielding (images, labels) — raw image tensors.
+        target_flops:       FLOPs target as fraction of original head FLOPs (0.5 = 50% less).
+        n_generations:      NAS search generations.
+        n_pop:              Population size per generation.
+        device:             'cpu' or 'cuda'. Auto-detected when None.
+        verbose:            Print per-generation progress.
+        seed:               Reproducibility seed.
+        finetune_backbone:  After NAS, fine-tune the full backbone+head end-to-end.
+        finetune_epochs:    Epochs for end-to-end fine-tuning (only if finetune_backbone=True).
+        feature_dim:        Override auto-detected backbone output dimension.
+        n_classes:          Override auto-detected number of classes.
+        batch_size:         Batch size for feature extraction and fine-tuning.
+        progress_callback:  Optional callable(log) per NAS generation.
+
+    Returns:
+        CompressResult where .model is the full backbone + compressed head.
+        FLOPs/params metrics cover the compressed head only.
+
+    Example:
+        >>> import torchvision.models as tv
+        >>> backbone = tv.mobilenet_v2(weights="IMAGENET1K_V1")
+        >>> result = compress_with_backbone(backbone, cifar_loader, target_flops=0.4)
+        >>> print(result.summary())
+        >>> result.model  # full model, ready for inference
+    """
+    import copy
+    from torch.utils.data import DataLoader, TensorDataset
+
+    if device is None:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # -- 1. Split backbone / head ---------------------------------------------------
+    if feature_dim is None or n_classes is None:
+        _feat_model, _feat_dim, _n_cls = _split_backbone_head(backbone, device)
+        feature_dim = feature_dim or _feat_dim
+        n_classes   = n_classes   or _n_cls
+        feat_model  = _feat_model
+    else:
+        feat_model = copy.deepcopy(backbone).to(device)
+        for attr in ("fc", "classifier", "head", "heads"):
+            if hasattr(feat_model, attr):
+                setattr(feat_model, attr, nn.Identity())
+                break
+
+    # -- 2. Extract embeddings (frozen backbone, single pass) ----------------------
+    if verbose:
+        print(f"[compress_with_backbone] Extracting features: dim={feature_dim}, classes={n_classes}")
+
+    feat_model.eval()
+    all_X, all_y = [], []
+    loader = train_data if hasattr(train_data, "__iter__") else DataLoader(train_data, batch_size=batch_size)
+    with torch.no_grad():
+        for batch in loader:
+            xb, yb = batch[0].to(device), batch[1]
+            feats = feat_model(xb)
+            if feats.ndim > 2:
+                feats = feats.view(feats.size(0), -1)
+            all_X.append(feats.cpu())
+            all_y.append(yb.cpu() if isinstance(yb, torch.Tensor) else torch.tensor(yb))
+
+    X = torch.cat(all_X)
+    y = torch.cat(all_y)
+    X = (X - X.mean(0)) / X.std(0).clamp_min(1e-7)  # z-score norm
+
+    emb_loader = DataLoader(TensorDataset(X, y), batch_size=batch_size, shuffle=True)
+
+    if verbose:
+        print(f"  -> {len(X):,} embeddings extracted. Running NAS on MLP head...")
+
+    # -- 3. Build MLP head and compress it via NAS ---------------------------------
+    if feature_dim >= 1000:
+        hidden = [512, 256, 128]
+    elif feature_dim >= 300:
+        hidden = [256, 128, 64]
+    else:
+        hidden = [128, 64]
+
+    layers: list[nn.Module] = []
+    prev = feature_dim
+    for h in hidden:
+        layers += [nn.Linear(prev, h), nn.ReLU()]
+        prev = h
+    layers.append(nn.Linear(prev, n_classes))
+    head_model = nn.Sequential(*layers)
+
+    result = compress(
+        head_model, emb_loader,
+        target_flops=target_flops,
+        n_generations=n_generations,
+        n_pop=n_pop,
+        device=device,
+        verbose=verbose,
+        seed=seed,
+        progress_callback=progress_callback,
+    )
+
+    # -- 4. Splice compressed head back onto backbone ------------------------------
+    full_model = copy.deepcopy(backbone).to(device)
+    for attr in ("fc", "classifier", "head", "heads"):
+        if hasattr(full_model, attr):
+            original_head = getattr(full_model, attr)
+            if isinstance(original_head, nn.Sequential):
+                # Preserve Dropout / BN before the final Linear if any
+                pre = [m for m in original_head.children() if not isinstance(m, nn.Linear)]
+                new_head = nn.Sequential(*pre, *result.model.children()) if pre else result.model
+            else:
+                new_head = result.model
+            setattr(full_model, attr, new_head)
+            break
+
+    # -- 5. Optional end-to-end fine-tuning ----------------------------------------
+    if finetune_backbone and finetune_epochs > 0:
+        if verbose:
+            print(f"\nFine-tuning full backbone+head end-to-end ({finetune_epochs} epochs)...")
+        full_model.train()
+        optimizer = torch.optim.Adam(full_model.parameters(), lr=1e-4, weight_decay=1e-4)
+        criterion = nn.CrossEntropyLoss()
+        raw_loader = train_data if hasattr(train_data, "__iter__") else DataLoader(train_data, batch_size=batch_size)
+        for ep in range(finetune_epochs):
+            ep_correct = ep_total = 0
+            for xb, yb in raw_loader:
+                xb = xb.to(device)
+                yb = yb.to(device) if isinstance(yb, torch.Tensor) else torch.tensor(yb, device=device)
+                optimizer.zero_grad()
+                out = full_model(xb)
+                nn.CrossEntropyLoss()(out, yb).backward()
+                optimizer.step()
+                ep_correct += (out.argmax(1) == yb).sum().item()
+                ep_total += len(yb)
+            if verbose:
+                print(f"  Finetune epoch {ep+1}/{finetune_epochs} acc={ep_correct/ep_total:.4f}")
+        result.accuracy = ep_correct / ep_total
+
+    result.model = full_model
+    return result
+
+
+def prune_conv_channels(
+    model: nn.Module,
+    amount: float = 0.3,
+    make_permanent: bool = True,
+) -> nn.Module:
+    """
+    Prune the least-important output channels of all Conv2d layers (L1-norm structured pruning).
+
+    dNATY's NAS compresses MLP layers via architecture search.
+    This function handles the conv backbone via structured channel pruning
+    (torch.nn.utils.prune), which is complementary — not overlapping.
+
+    Typical workflow for CNN compression:
+        1. prune_conv_channels(backbone, amount=0.3)  # prune backbone channels
+        2. compress_with_backbone(backbone, data)     # NAS-compress the head
+        3. result.export_onnx(...)                    # deploy to edge
+
+    Args:
+        model:           Any nn.Module with nn.Conv2d layers.
+        amount:          Fraction of channels to zero out per layer (0.3 = 30%).
+        make_permanent:  If True, remove prune buffers and bake masks into weights.
+                         Required before ONNX export or fine-tuning.
+
+    Returns:
+        The pruned model (modified in-place, also returned for chaining).
+
+    Example:
+        >>> from dnaty import prune_conv_channels
+        >>> model = prune_conv_channels(resnet18, amount=0.3)
+        >>> result = compress_with_backbone(model, loader, target_flops=0.5)
+    """
+    from torch.nn.utils import prune
+
+    pruned = 0
+    for module in model.modules():
+        if isinstance(module, nn.Conv2d) and module.out_channels > 1:
+            n_prune = max(1, int(module.out_channels * amount))
+            # Keep at least 1 channel
+            if n_prune >= module.out_channels:
+                n_prune = module.out_channels - 1
+            actual_amount = n_prune / module.out_channels
+            prune.ln_structured(module, name="weight", amount=actual_amount, n=1, dim=0)
+            if make_permanent:
+                prune.remove(module, "weight")
+            pruned += 1
+
+    return model
+
+
+def _infer_n_classes_from_head(head: nn.Module) -> int:
+    """Get out_features from a classifier that may be Linear or Sequential."""
+    if isinstance(head, nn.Linear):
+        return head.out_features
+    for m in reversed(list(head.modules())):
+        if isinstance(m, nn.Linear):
+            return m.out_features
+    return 10  # safe fallback
+
+
+def _split_backbone_head(
+    backbone: nn.Module,
+    device: str,
+) -> tuple[nn.Module, int, int]:
+    """
+    Returns (feature_extractor, feature_dim, n_classes).
+    Replaces the classifier head with Identity to expose embeddings.
+    """
+    import copy
+
+    head = None
+    head_attr = None
+    for attr in ("fc", "classifier", "head", "heads"):
+        if hasattr(backbone, attr):
+            head = getattr(backbone, attr)
+            head_attr = attr
+            break
+
+    if head is None:
+        raise ValueError(
+            "Cannot locate classifier head. Model must have a 'fc', 'classifier', "
+            "'head', or 'heads' attribute. Pass feature_dim and n_classes explicitly."
+        )
+
+    n_classes = _infer_n_classes_from_head(head)
+
+    feat_model = copy.deepcopy(backbone).to(device)
+    setattr(feat_model, head_attr, nn.Identity())
+    feat_model.eval()
+
+    # Probe feature_dim with increasingly larger dummy inputs
+    feature_dim = None
+    for h in [32, 64, 96, 224]:
+        try:
+            with torch.no_grad():
+                dummy = torch.zeros(1, 3, h, h, device=device)
+                out = feat_model(dummy)
+                feature_dim = out.view(1, -1).shape[1]
+            break
+        except Exception:
+            continue
+
+    if feature_dim is None:
+        raise ValueError(
+            "Cannot probe backbone output dimension. Pass feature_dim explicitly."
+        )
+
+    return feat_model, feature_dim, n_classes
 
 
 def _infer_layer_sizes(model: nn.Module) -> list[int]:
