@@ -66,7 +66,7 @@ def local_train(
     use_amp = device_type == "cuda"
     if use_amp:
         torch.backends.cudnn.benchmark = True  # autotuna kernels conv p/ shapes fixos
-    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
+    scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
 
     loss_first = 0.0
     loss_last  = 0.0
