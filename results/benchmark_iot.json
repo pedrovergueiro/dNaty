@@ -1,0 +1,87 @@
+{
+  "results": [
+    {
+      "dataset": "Epileptic Seizure (11.5K)",
+      "samples": 11500,
+      "features": 178,
+      "classes": 5,
+      "params_orig": 256517,
+      "target_flops": 0.4,
+      "flops_reduction_pct": 46.0,
+      "params_reduction_pct": 45.2,
+      "val_accuracy": 0.7009,
+      "nas_best_accuracy": 0.9441,
+      "elapsed_s": 351.1,
+      "arch": [706, 14, 128],
+      "generations": 30
+    },
+    {
+      "dataset": "Network Intrusion NSL-KDD (125K)",
+      "samples": 25192,
+      "features": 118,
+      "classes": 2,
+      "params_orig": 71746,
+      "target_flops": 0.5,
+      "flops_reduction_pct": 56.3,
+      "params_reduction_pct": 55.1,
+      "val_accuracy": 0.9946,
+      "nas_best_accuracy": 0.9983,
+      "elapsed_s": 535.4,
+      "arch": [226, 14, 7, 65, 7, 32],
+      "generations": 30
+    },
+    {
+      "dataset": "Electrical Fault Detect (12K)",
+      "samples": 12001,
+      "features": 6,
+      "classes": 2,
+      "params_orig": 11298,
+      "target_flops": 0.4,
+      "flops_reduction_pct": 86.0,
+      "params_reduction_pct": 81.7,
+      "val_accuracy": 0.9904,
+      "nas_best_accuracy": 0.9923,
+      "elapsed_s": 240.7,
+      "arch": [136, 4, 32],
+      "generations": 30
+    },
+    {
+      "dataset": "Electrical Fault Classify (7.8K)",
+      "samples": 7861,
+      "features": 6,
+      "classes": 6,
+      "params_orig": 35135,
+      "target_flops": 0.4,
+      "flops_reduction_pct": 18.8,
+      "params_reduction_pct": 16.7,
+      "val_accuracy": 0.8525,
+      "nas_best_accuracy": 0.8572,
+      "elapsed_s": 148.0,
+      "arch": [204, 102, 57],
+      "generations": 30,
+      "note": "Fixed in v1.1.4 — build_model now scales by n_classes. 6 features / 6 classes is the real compression ceiling for this dataset."
+    },
+    {
+      "dataset": "Dry Bean Quality (13K)",
+      "samples": 13611,
+      "features": 16,
+      "classes": 7,
+      "params_orig": 45959,
+      "target_flops": 0.4,
+      "flops_reduction_pct": 83.4,
+      "params_reduction_pct": 81.3,
+      "val_accuracy": 0.9243,
+      "nas_best_accuracy": 0.9339,
+      "elapsed_s": 292.0,
+      "arch": [275, 8, 64],
+      "generations": 30,
+      "note": "Agricultural IoT quality control — new benchmark added v1.1.4"
+    }
+  ],
+  "failed": [
+    ["Room Occupancy", "403 Client Error — Kaggle consent required"],
+    ["Steel Plates Faults", "403 Client Error — Kaggle consent required (uciml)"],
+    ["Gas Sensor Array Drift", "403 Client Error — Kaggle consent required (uciml)"],
+    ["Occupancy Estimation", "No accessible Kaggle slug found"]
+  ]
+}

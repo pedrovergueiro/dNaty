@@ -1,0 +1,58 @@
+{
+  "results": [
+    {
+      "dataset": "Electrical Fault Classify (7.8K) [FIXED]",
+      "samples": 7861,
+      "features": 6,
+      "classes": 6,
+      "params_orig": 35135,
+      "target_flops": 0.4,
+      "flops_reduction_pct": 18.8,
+      "params_reduction_pct": 16.7,
+      "val_accuracy": 0.8525,
+      "nas_best_accuracy": 0.8572,
+      "elapsed_s": 148.5,
+      "arch": [
+        204,
+        102,
+        57
+      ],
+      "generations": 30,
+      "model_grew": false
+    },
+    {
+      "dataset": "Dry Bean Quality (13K)",
+      "samples": 13611,
+      "features": 16,
+      "classes": 7,
+      "params_orig": 45959,
+      "target_flops": 0.4,
+      "flops_reduction_pct": 83.4,
+      "params_reduction_pct": 81.3,
+      "val_accuracy": 0.9243,
+      "nas_best_accuracy": 0.9339,
+      "elapsed_s": 291.8,
+      "arch": [
+        275,
+        8,
+        64
+      ],
+      "generations": 30,
+      "model_grew": false
+    }
+  ],
+  "failed": [
+    [
+      "Steel Plates Faults (1.9K)",
+      "403 Client Error.\n\nYou don't have permission to access resource at URL: https://api.kaggle.com/v1/datasets.DatasetApiService/GetDataset. Please make sure you are authenticated if you are trying to access a private resource or a resource requiring consent."
+    ],
+    [
+      "Gas Sensor Drift (13K)",
+      "403 Client Error.\n\nYou don't have permission to access resource at URL: https://api.kaggle.com/v1/datasets.DatasetApiService/GetDataset. Please make sure you are authenticated if you are trying to access a private resource or a resource requiring consent."
+    ],
+    [
+      "Occupancy Estimation (smart building)",
+      "Nenhum slug de Occupancy Estimation acessivel"
+    ]
+  ]
+}
