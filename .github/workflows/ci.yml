@@ -28,8 +28,17 @@ jobs:
           pip install numpy>=1.24.0 scipy>=1.10.0 tqdm>=4.65.0
           pip install pytest
 
-      - name: Run core unit tests
+      - name: Run sanity tests
         run: pytest tests/test_sanity.py -v -x
+
+      - name: Run edge case tests
+        run: pytest tests/test_edge_cases.py -v -x
+
+      - name: Run reproducibility tests
+        run: pytest tests/test_reproducibility.py -v -x
+
+      - name: Run regression tests
+        run: pytest tests/test_regression.py -v -x
 
   release:
     runs-on: ubuntu-latest

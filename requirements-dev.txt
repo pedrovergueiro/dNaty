@@ -1,0 +1,11 @@
+# dNATY development dependencies — install this for local dev and testing
+# pip install -r requirements-dev.txt
+-r requirements-lib.txt
+
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-asyncio>=0.21.0
+httpx>=0.25.0
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.5.0

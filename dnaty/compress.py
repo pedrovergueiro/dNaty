@@ -13,194 +13,19 @@ Usage:
     result = dnaty.load("model_compressed.pt")
 """
 from __future__ import annotations
-from dataclasses import dataclass, field
 from typing import Optional, Callable
 import warnings
 
 import torch
 import torch.nn as nn
 
-
-@dataclass
-class CompressResult:
-    model: nn.Module
-    original_flops: int
-    compressed_flops: int
-    original_params: int
-    compressed_params: int
-    accuracy: float
-    flops_reduction: float      # positive = compressed, negative = model grew
-    generations: int
-    arch: list[int] = field(default_factory=list)   # hidden layer sizes found
-
-    @property
-    def flops_reduction_pct(self) -> float:
-        return self.flops_reduction * 100
-
-    @property
-    def params_reduction_pct(self) -> float:
-        if self.original_params == 0:
-            return 0.0
-        return (1.0 - self.compressed_params / self.original_params) * 100
-
-    @property
-    def model_grew(self) -> bool:
-        return self.flops_reduction < 0
-
-    def summary(self) -> str:
-        def _fmt(pct: float) -> str:
-            sign = "↓" if pct > 0 else "↑" if pct < 0 else "="
-            return f"{sign}{abs(pct):.1f}%"
-        return (
-            f"CompressResult | arch={self.arch} | "
-            f"FLOPs {_fmt(self.flops_reduction_pct)} "
-            f"({self.original_flops:,} -> {self.compressed_flops:,}) | "
-            f"params {_fmt(self.params_reduction_pct)} "
-            f"({self.original_params:,} -> {self.compressed_params:,}) | "
-            f"acc={self.accuracy:.4f}"
-        )
-
-    def save(self, path: str) -> None:
-        """Persist the compressed model and all metrics to a .pt file."""
-        from dnaty.core.arch import DynamicMLP
-        payload = {
-            "layer_sizes": list(self.model.layer_sizes) if hasattr(self.model, "layer_sizes") else [],
-            "activations": list(self.model.activations) if hasattr(self.model, "activations") else [],
-            "n_classes": self.model.n_classes if hasattr(self.model, "n_classes") else None,
-            "model_state": self.model.state_dict(),
-            "original_flops": self.original_flops,
-            "compressed_flops": self.compressed_flops,
-            "original_params": self.original_params,
-            "compressed_params": self.compressed_params,
-            "accuracy": self.accuracy,
-            "flops_reduction": self.flops_reduction,
-            "generations": self.generations,
-            "arch": self.arch,
-        }
-        torch.save(payload, path)
-
-    def benchmark_latency(
-        self,
-        input_shape: tuple,
-        n_warmup: int = 20,
-        n_runs: int = 200,
-        batch_size: int = 1,
-        device: Optional[str] = None,
-    ) -> dict:
-        """Measure real inference latency (p50/p95/p99 in milliseconds).
-
-        Designed for edge deployment validation (Raspberry Pi, drones, cameras).
-        Uses CPU by default — matches target hardware that has no GPU.
-
-        Args:
-            input_shape: Shape of a single sample, e.g. (784,) or (3, 32, 32).
-            n_warmup:    Warm-up runs before timing (fills caches, JIT).
-            n_runs:      Timed runs for statistics.
-            batch_size:  Batch size per inference call (1 = real-time edge mode).
-            device:      'cpu' or 'cuda'. Defaults to 'cpu'.
-
-        Returns:
-            dict with p50_ms, p95_ms, p99_ms, mean_ms, fps.
-
-        Example:
-            result.benchmark_latency((784,))
-            # {'p50_ms': 0.12, 'p95_ms': 0.18, 'fps': 5400, ...}
-        """
-        import time
-        dev = device or "cpu"
-        model = self.model.to(dev)
-        model.eval()
-        dummy = torch.zeros(batch_size, *input_shape, device=dev)
-
-        # Warm-up
-        with torch.no_grad():
-            for _ in range(n_warmup):
-                model(dummy)
-
-        # Timed runs
-        times = []
-        with torch.no_grad():
-            for _ in range(n_runs):
-                if dev == "cuda":
-                    torch.cuda.synchronize()
-                t0 = time.perf_counter()
-                model(dummy)
-                if dev == "cuda":
-                    torch.cuda.synchronize()
-                times.append((time.perf_counter() - t0) * 1000)
-
-        times = sorted(times)
-        p50 = float(times[int(0.50 * n_runs)])
-        p95 = float(times[int(0.95 * n_runs)])
-        p99 = float(times[int(0.99 * n_runs)])
-        mean = float(sum(times) / n_runs)
-        fps = 1000.0 / mean if mean > 0 else float("inf")
-
-        return {
-            "p50_ms": round(p50, 3),
-            "p95_ms": round(p95, 3),
-            "p99_ms": round(p99, 3),
-            "mean_ms": round(mean, 3),
-            "fps": round(fps, 1),
-            "device": dev,
-            "batch_size": batch_size,
-        }
-
-    def export_onnx(self, path: str, input_shape: tuple) -> None:
-        """Export the compressed model to ONNX for CPU deployment (drones, cameras, robots).
-
-        Args:
-            path:        Output file path, e.g. "model.onnx".
-            input_shape: Shape of a single input sample, e.g. (784,) for MNIST or (3072,) for CIFAR-10.
-                         Do NOT include the batch dimension.
-
-        Example:
-            result.export_onnx("model.onnx", input_shape=(784,))
-        """
-        dummy = torch.zeros(1, *input_shape)
-        input_names = ["input"]
-        output_names = ["output"]
-        torch.onnx.export(
-            self.model,
-            dummy,
-            path,
-            input_names=input_names,
-            output_names=output_names,
-            dynamic_axes={"input": {0: "batch_size"}, "output": {0: "batch_size"}},
-            opset_version=17,
-            do_constant_folding=True,
-        )
-
-
-def load(path: str) -> CompressResult:
-    """Reload a CompressResult previously saved with result.save().
-
-    Args:
-        path: Path to the .pt file created by CompressResult.save().
-
-    Returns:
-        CompressResult with the reconstructed model and all compression metrics.
-
-    Example:
-        result = dnaty.load("model_compressed.pt")
-        print(result.summary())
-    """
-    from dnaty.core.arch import DynamicMLP
-    payload = torch.load(path, map_location="cpu", weights_only=False)
-    model = DynamicMLP(payload["layer_sizes"], payload["activations"], payload["n_classes"])
-    model.load_state_dict(payload["model_state"])
-    model.eval()
-    return CompressResult(
-        model=model,
-        original_flops=payload["original_flops"],
-        compressed_flops=payload["compressed_flops"],
-        original_params=payload["original_params"],
-        compressed_params=payload["compressed_params"],
-        accuracy=payload["accuracy"],
-        flops_reduction=payload["flops_reduction"],
-        generations=payload["generations"],
-        arch=payload["arch"],
-    )
+# Re-export for backward compat: `from dnaty.compress import CompressResult, load`
+from dnaty.result import CompressResult, load  # noqa: F401
+from dnaty._compress_helpers import (
+    _infer_layer_sizes,
+    _infer_n_classes_from_head,
+    _split_backbone_head,
+)
 
 
 def compress(
@@ -407,7 +232,6 @@ def compress_cnn(
         torch.manual_seed(seed)
         np.random.seed(seed)
 
-    # Infer n_classes from model
     n_classes = 10
     if hasattr(model, "n_classes"):
         n_classes = model.n_classes
@@ -419,7 +243,6 @@ def compress_cnn(
 
     lambda2 = max(1e-7, 5e-6 * (1.0 - target_flops))
 
-    # Use DynamicCNN defaults if starting from scratch or non-DynamicCNN model
     if isinstance(model, DynamicCNN):
         conv_configs = list(model.conv_configs)
         fc_sizes = list(model.fc_sizes)
@@ -614,7 +437,6 @@ def compress_with_backbone(
         if hasattr(full_model, attr):
             original_head = getattr(full_model, attr)
             if isinstance(original_head, nn.Sequential):
-                # Preserve Dropout / BN before the final Linear if any
                 pre = [m for m in original_head.children() if not isinstance(m, nn.Linear)]
                 new_head = nn.Sequential(*pre, *result.model.children()) if pre else result.model
             else:
@@ -686,7 +508,6 @@ def prune_conv_channels(
     for module in model.modules():
         if isinstance(module, nn.Conv2d) and module.out_channels > 1:
             n_prune = max(1, int(module.out_channels * amount))
-            # Keep at least 1 channel
             if n_prune >= module.out_channels:
                 n_prune = module.out_channels - 1
             actual_amount = n_prune / module.out_channels
@@ -696,78 +517,3 @@ def prune_conv_channels(
             pruned += 1
 
     return model
-
-
-def _infer_n_classes_from_head(head: nn.Module) -> int:
-    """Get out_features from a classifier that may be Linear or Sequential."""
-    if isinstance(head, nn.Linear):
-        return head.out_features
-    for m in reversed(list(head.modules())):
-        if isinstance(m, nn.Linear):
-            return m.out_features
-    return 10  # safe fallback
-
-
-def _split_backbone_head(
-    backbone: nn.Module,
-    device: str,
-) -> tuple[nn.Module, int, int]:
-    """
-    Returns (feature_extractor, feature_dim, n_classes).
-    Replaces the classifier head with Identity to expose embeddings.
-    """
-    import copy
-
-    head = None
-    head_attr = None
-    for attr in ("fc", "classifier", "head", "heads"):
-        if hasattr(backbone, attr):
-            head = getattr(backbone, attr)
-            head_attr = attr
-            break
-
-    if head is None:
-        raise ValueError(
-            "Cannot locate classifier head. Model must have a 'fc', 'classifier', "
-            "'head', or 'heads' attribute. Pass feature_dim and n_classes explicitly."
-        )
-
-    n_classes = _infer_n_classes_from_head(head)
-
-    feat_model = copy.deepcopy(backbone).to(device)
-    setattr(feat_model, head_attr, nn.Identity())
-    feat_model.eval()
-
-    # Probe feature_dim with increasingly larger dummy inputs
-    feature_dim = None
-    for h in [32, 64, 96, 224]:
-        try:
-            with torch.no_grad():
-                dummy = torch.zeros(1, 3, h, h, device=device)
-                out = feat_model(dummy)
-                feature_dim = out.view(1, -1).shape[1]
-            break
-        except Exception:
-            continue
-
-    if feature_dim is None:
-        raise ValueError(
-            "Cannot probe backbone output dimension. Pass feature_dim explicitly."
-        )
-
-    return feat_model, feature_dim, n_classes
-
-
-def _infer_layer_sizes(model: nn.Module) -> list[int]:
-    """Extract [in, h1, h2, ..., out] from a Linear-based model."""
-    sizes: list[int] = []
-    for m in model.modules():
-        if isinstance(m, nn.Linear):
-            if not sizes:
-                sizes.append(m.in_features)
-            sizes.append(m.out_features)
-    if len(sizes) < 2:
-        raise ValueError(
-            "Cannot infer architecture: model must contain at least one nn.Linear layer."
-        )
-    return sizes

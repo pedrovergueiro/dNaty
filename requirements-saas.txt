@@ -1,0 +1,17 @@
+# dNATY SaaS API dependencies — install this when running the backend (dnaty_saas/)
+# pip install -r requirements-saas.txt
+-r requirements-lib.txt
+
+fastapi>=0.104.0
+uvicorn>=0.24.0
+python-multipart>=0.0.7
+python-jose[cryptography]>=3.3.0
+bcrypt>=4.0.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+SQLAlchemy>=2.0.0
+psycopg2-binary>=2.9.0
+stripe>=7.0.0
+celery>=5.3.0
+redis>=5.0.0
+prometheus-client>=0.18.0
