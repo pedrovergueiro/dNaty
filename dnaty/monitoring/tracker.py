@@ -76,7 +76,8 @@ class ProductionTracker:
         self._n_correct = 0
         self._n_labelled = 0
 
-        self._baseline_fitted = False
+        # Honor a pre-fitted detector (the documented flow: fit() it, pass it in).
+        self._baseline_fitted = bool(getattr(self.drift_detector, "_fitted", False))
         self._last_drift_report: Optional[dict] = None
 
     # ------------------------------------------------------------------
@@ -154,7 +155,9 @@ class ProductionTracker:
             "confidences": confidences,
             "alert": alert,
             "drift_score": drift_score,
+            "psi": drift_score,  # alias of drift_score — matches the published docs
             "latency_ms": latency_ms,
+            "n_samples": len(predictions),
         }
 
     # ------------------------------------------------------------------

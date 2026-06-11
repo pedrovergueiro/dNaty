@@ -53,6 +53,10 @@ class DynamicMLP(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = x.view(x.size(0), -1)
+        if x.dtype != torch.float32:
+            # pandas .values / numpy default to float64 — casting here beats the
+            # cryptic "mat1 and mat2 must have the same dtype" deep in nn.Linear
+            x = x.float()
         layer_outputs = [x]
         idx = 0
         for i in range(len(self.layer_sizes) - 1):

@@ -40,15 +40,17 @@ class DriftDetector:
         n_bins: int = 10,
         psi_threshold: float = 0.2,
         smoothing: float = 1e-6,
+        threshold: "float | None" = None,
     ):
         """
         Args:
             n_bins:         Histogram bins per feature.
             psi_threshold:  PSI above this → drifted=True (0.2 = industry standard).
             smoothing:      Additive smoothing to avoid log(0).
+            threshold:      Alias for psi_threshold (matches the published docs).
         """
         self.n_bins = n_bins
-        self.psi_threshold = psi_threshold
+        self.psi_threshold = psi_threshold if threshold is None else threshold
         self.smoothing = smoothing
         self._baselines: list[np.ndarray] = []
         self._edges: list[np.ndarray] = []
@@ -113,13 +115,16 @@ class DriftDetector:
             kl = float(np.sum(baseline * np.log(baseline / actual)))
             kl_list.append(kl)
 
+        psi_mean = float(np.mean(psi_list))
         return {
-            "psi_mean": float(np.mean(psi_list)),
+            "psi": psi_mean,  # alias of psi_mean — matches the published docs
+            "psi_mean": psi_mean,
             "psi_max": float(np.max(psi_list)),
             "kl_mean": float(np.mean(kl_list)),
+            "kl_divergence": float(np.mean(kl_list)),  # alias — matches the published docs
             "psi_per_feature": psi_list,
             "kl_per_feature": kl_list,
-            "drifted": float(np.mean(psi_list)) > self.psi_threshold,
+            "drifted": psi_mean > self.psi_threshold,
             "n_samples": len(arr),
         }
 

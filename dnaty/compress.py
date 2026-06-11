@@ -28,6 +28,15 @@ from dnaty._compress_helpers import (
 )
 
 
+def _validate_target_flops(target_flops: float) -> None:
+    if not (0.0 < target_flops <= 1.0):
+        raise ValueError(
+            f"target_flops={target_flops} is out of range. It is a fraction of the "
+            f"original FLOPs to keep: 0.5 aims for 50% fewer FLOPs. "
+            f"Valid range is (0, 1] — e.g. 0.3 aggressive, 0.5 balanced, 0.7 conservative."
+        )
+
+
 def compress(
     model: nn.Module,
     train_data,
@@ -81,6 +90,8 @@ def compress(
     from dnaty.core.arch import DynamicMLP
     from dnaty.core.individual import Individual
     from dnaty.training.local_train import local_train, evaluate
+
+    _validate_target_flops(target_flops)
 
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -225,6 +236,8 @@ def compress_cnn(
     from dnaty.evolution.evolver import CnnEvolver
     from dnaty.core.arch_cnn import DynamicCNN
 
+    _validate_target_flops(target_flops)
+
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -362,6 +375,8 @@ def compress_with_backbone(
     """
     import copy
     from torch.utils.data import DataLoader, TensorDataset
+
+    _validate_target_flops(target_flops)
 
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"

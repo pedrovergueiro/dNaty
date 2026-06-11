@@ -147,16 +147,22 @@ class CompressResult:
             result.export_onnx("model.onnx", input_shape=(784,))
         """
         dummy = torch.zeros(1, *input_shape)
-        torch.onnx.export(
-            self.model,
-            dummy,
-            path,
+        self.model.eval()
+        kwargs = dict(
             input_names=["input"],
             output_names=["output"],
             dynamic_axes={"input": {0: "batch_size"}, "output": {0: "batch_size"}},
             opset_version=17,
             do_constant_folding=True,
         )
+        try:
+            # torch >= 2.6 defaults to the dynamo exporter, which fails on
+            # DynamicMLP's data-dependent skip-connection loop. Force the
+            # stable TorchScript exporter.
+            torch.onnx.export(self.model, dummy, path, dynamo=False, **kwargs)
+        except TypeError:
+            # torch < 2.5 has no `dynamo` kwarg — TorchScript is already the default.
+            torch.onnx.export(self.model, dummy, path, **kwargs)
 
 
 def load(path: str) -> CompressResult:
@@ -173,7 +179,9 @@ def load(path: str) -> CompressResult:
         print(result.summary())
     """
     from dnaty.core.arch import DynamicMLP
-    payload = torch.load(path, map_location="cpu", weights_only=False)
+    # weights_only=True: the payload is tensors + primitives only, and this
+    # blocks pickle-based arbitrary code execution from untrusted .pt files.
+    payload = torch.load(path, map_location="cpu", weights_only=True)
     model = DynamicMLP(payload["layer_sizes"], payload["activations"], payload["n_classes"])
     model.load_state_dict(payload["model_state"])
     model.eval()
