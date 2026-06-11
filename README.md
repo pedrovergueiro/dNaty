@@ -1,24 +1,26 @@
 <div align="center">
 
-<img src="assets/logo.png" alt="dNATY" width="180" />
+<img src="https://raw.githubusercontent.com/pedrovergueiro/dNaty/main/assets/logo.png" alt="dNATY" width="180" />
 
 # dNATY
 
 ### Evolutionary AI Model Compression
 
-**46.5% fewer FLOPs · 1.6× faster search · 98.59% accuracy retained · no GPU required**
+**Up to 86% fewer FLOPs · accuracy kept · 18 benchmark datasets · no GPU required**
 
 [![PyPI version](https://img.shields.io/pypi/v/dnaty.svg?color=green)](https://pypi.org/project/dnaty/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-3776ab.svg?logo=python&logoColor=white)](https://www.python.org/)
 [![PyTorch 2.0+](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg?logo=pytorch&logoColor=white)](https://pytorch.org/)
-[![License: BSL-1.1](https://img.shields.io/badge/License-BSL--1.1-orange.svg)](LICENSE)
+[![License: BSL-1.1](https://img.shields.io/badge/License-BSL--1.1-orange.svg)](https://github.com/pedrovergueiro/dNaty/blob/main/LICENSE)
 
-Compress any PyTorch model with one function call.  
-dNATY uses multi-objective evolutionary search to find smaller, faster architectures — automatically.
+Compress any PyTorch model with one function call.
+dNATY uses multi-objective evolutionary search (NSGA-II) guided by episodic memory to find smaller, faster architectures — automatically, on a standard CPU.
 
 ```bash
 pip install dnaty
 ```
+
+[Website](https://dnaty.org) · [Docs](https://dnaty.org/docs) · [Benchmarks](https://dnaty.org/benchmarks) · [Changelog](https://dnaty.org/changelog)
 
 </div>
 
@@ -62,26 +64,31 @@ result.arch                   # [301, 153, 128]  ← hidden layer sizes found
 result.save("compressed.pt")
 result = dnaty.load("compressed.pt")
 
-# Export to ONNX for edge deployment
+# Export to ONNX for edge deployment (no PyTorch needed on the device)
 result.export_onnx("model.onnx", input_shape=(784,))
+
+# Measure real CPU latency on your machine
+print(result.benchmark_latency((784,)))   # p50/p95/p99 ms + fps
 ```
 
 ---
 
 ## Why dNATY?
 
-**The problem:** most models ship larger than they need to be. That means slower inference, higher cloud bills, and models too heavy for edge devices (cameras, drones, robots). Shrinking them by hand is days of trial-and-error with no guarantee you found the best size/accuracy trade-off.
+**The problem:** most models ship larger than they need to be. That means slower inference, higher cloud bills, and models too heavy for edge devices (cameras, drones, robots, industrial boxes). Shrinking them by hand is days of trial-and-error with no guarantee you found the best size/accuracy trade-off.
 
 **What you get with dNATY:**
 
-- **Smaller, cheaper models** — ~46% fewer FLOPs on MNIST, accuracy kept (98.59%)
-- **No GPU** — the search runs on CPU in minutes, so it works in CI and on the edge hardware you already have
-- **No retraining** — point it at a model + dataset, get a deployable `nn.Module` back
-- **One function call** — `compress(model, dataset)`; export to `.pth` / `.onnx`
+- **Smaller, cheaper models** — 23–86% fewer FLOPs across 18 benchmark datasets, accuracy kept
+- **No GPU** — the search runs on CPU in minutes, so it works in CI and on the hardware you already have
+- **No manual architecture design** — point it at a model + dataset, get a deployable `nn.Module` back
+- **One function call** — `compress(model, dataset)`; export to `.pt` / `.onnx`
 
-### How is this different from pruning / quantization / distillation?
+### "Why not just TensorRT or TFLite?" — wrong layer.
 
-Those methods shrink the model you *already have*. dNATY searches for a **smaller architecture** that does the same job — a different layer here. They're complementary, not competing:
+Runtimes optimize *execution* of a fixed architecture. dNATY optimizes *the architecture itself*, upstream of any runtime. You don't choose between them — you chain them: `compress()` → `export_onnx()` → load into TensorRT / TFLite / ONNX Runtime. The savings stack.
+
+### Versus other compression techniques
 
 | Method | What it does | Catch |
 |---|---|---|
@@ -90,146 +97,117 @@ Those methods shrink the model you *already have*. dNATY searches for a **smalle
 | **Distillation** | Trains a small student model | You design the student + write the training loop |
 | **DARTS** | Gradient-based architecture search | Needs a GPU + hours of config |
 | **Random NAS** | Random architecture sampling | No memory — re-tries bad ideas |
-| **dNATY** | Evolves a smaller architecture, memory-guided | CPU-only, one call, no retraining |
+| **dNATY** | Evolves a smaller architecture, memory-guided | CPU-only, one call |
 
-The engine is **episodic memory-guided evolutionary search** (NSGA-II, multi-objective): operators that helped in past generations get sampled more often, so it converges faster than random search — no gradients, no GPU.
+The engine is **episodic memory-guided evolutionary search**: operators that helped in past generations get sampled more often, so it converges **1.6× faster than random NAS** — no gradients, no GPU.
 
 ---
 
-## Benchmark: dNATY vs alternatives
+## Measured results
 
-Results on MNIST (30K training samples, CPU, seed=42).
+All numbers measured on a standard desktop CPU, validation accuracy on a held-out 20% split, reproducible from scripts in this repo. Full tables, configs, and caveats: [dnaty.org/benchmarks](https://dnaty.org/benchmarks).
 
-| Method | FLOPs reduction | Accuracy | Setup effort | GPU needed |
+**13 public datasets** (n_generations=30, n_pop=15) — top rows:
+
+| Dataset | Samples | FLOPs ↓ | Val acc | Domain |
 |---|---|---|---|---|
-| **dNATY** | **−46.5%** | **98.59%** | 1 function call | No |
-| RandomNAS | −41.2% | 98.54% | 1 function call | No |
-| `torch.nn.utils.prune` | −30–40%\* | varies | manual per-layer | No |
-| DARTS | −35–50% | varies | hours of config | Yes |
-| Manual knowledge distillation | −20–60%\* | varies | custom training loop | No |
+| Electrical Fault Detect | 12,001 | **−86.0%** | 99.04% | smart grid sensors |
+| Dry Bean Quality | 13,611 | −83.4% | 92.43% | agricultural IoT |
+| Predictive Maint. (AI4I) | 10,000 | −83.1% | 96.70% | factory IoT |
+| Breast Cancer (UCI) | 569 | −72.6% | 100.0% | clinical tabular |
+| Credit Card Fraud (full) | 284,807 | −64.0% | 99.96% | financial anomaly |
+| Network Intrusion (NSL-KDD) | 31,490 | −56.3% | 99.46% | edge security |
+| HAR Sensors (UCI) | 10,299 | −46.8% | 99.17% | wearables · robotics |
+| MNIST (full 70K) | 70,000 | −41.8% | 98.68% | vision · digits |
 
-\* *highly dependent on model and manual choices*
+**5 market-grade synthetic domains** (n_generations=15, n_pop=12, deterministic feature-correlated labels):
+
+| Dataset | Samples | FLOPs ↓ | Val acc |
+|---|---|---|---|
+| Telecom Churn Prediction | 35,000 | −64.6% | 99.94% |
+| IoT Sensor Anomaly Detection | 50,000 | −61.4% | 99.18% |
+| Financial Fraud Detection | 100,000 | −60.3% | 99.31% |
+| E-commerce Purchase Propensity | 80,000 | −49.9% | 98.03% |
+| Healthcare Risk Stratification | 25,000 | −23.3% | 93.74% |
+
+Compression scales with how oversized the model is — dNATY finds the right size, it doesn't force a fixed cut. Lean models get small cuts (that's correct Pareto behavior, not a bug).
 
 **Continual learning (Split-MNIST, 5 tasks, 3 seeds)**
 
-| Method | Backward Transfer (BWT) | Less forgetting |
+| Method | Backward Transfer (BWT) | |
 |---|---|---|
-| **dNATY** | **−0.145** | **best** |
+| **dNATY (balanced replay)** | **−0.145** | **6.9× less forgetting** |
 | EWC | −0.999 | near-total forgetting |
 | MLP (no CL) | −0.998 | baseline |
 
-dNATY achieves **6.9× less catastrophic forgetting** than EWC.
+<img src="https://raw.githubusercontent.com/pedrovergueiro/dNaty/main/results/cpu_latency/cpu_latency_comparison.png" alt="CPU latency comparison" width="640" />
 
-![CPU Latency Comparison](results/cpu_latency/cpu_latency_comparison.png)
-
-All numbers reproducible: `python scripts/prove_it.py`
-
-### Measured across real datasets
-
-Compression depends on how oversized your model is — dNATY finds the right size, it doesn't force a fixed cut. Measured on CPU (held-out accuracy):
-
-| Dataset | FLOPs ↓ | Accuracy | Note |
-|---|---|---|---|
-| MNIST | **−50.4%** | 97.0% | oversized MLP → big cut |
-| Fashion-MNIST | **−54.6%** | 86.4% | oversized MLP → big cut |
-| UCI Wine Quality | −78.4% | 63.7% | extra capacity useless → shrinks hard |
-| UCI Adult / Census | −2.7% | 84.0% | already lean → small cut (correct) |
-| UCI Covertype | −1.5% | 78.1% | already lean → small cut (correct) |
-| HAR Sensors (accelerometer/gyroscope) | −62.8% | 100.0% | 562 sensor features · drones, robots, wearables |
-| Predictive Maintenance (AI4I) | −76.2% | 98.98% | 8 industrial sensor features · factory IoT |
-| CIFAR-10 (MLP) | −1.2% | 46.4% | MLP unfit for RGB — conv NAS is WIP |
-
-Full table, config, and reproduction: [BENCHMARKS_REAL.md](BENCHMARKS_REAL.md).
+Reproduce: `python scripts/prove_it.py` (NAS vs random) · `python scripts/benchmark_market_real.py` (market datasets)
 
 ---
 
-## Real examples
+## API at a glance
 
-### MNIST — MLP compression
+| You want to… | Use |
+|---|---|
+| Compress a tabular/sensor MLP | `compress(model, data, target_flops=0.5)` |
+| Compress a small CNN trained from scratch | `compress_cnn(model, loader)` *(early access — CIFAR-scale classification)* |
+| Compress the head of a pretrained backbone | `compress_with_backbone(resnet, loader, finetune_backbone=True)` |
+| Thin out conv layers too | `prune_conv_channels(model, amount=0.3)` |
+| Deploy without PyTorch on the device | `result.export_onnx("m.onnx", input_shape=...)` |
+| Save / reload | `result.save("m.pt")` / `dnaty.load("m.pt")` |
+| Detect data drift in production | `DriftDetector().fit(X_train)` + `ProductionTracker(model, detector)` |
+| Profile compute before deciding | `count_flops(model, input_shape)` / `flops_by_layer(...)` |
 
-```python
-import torch.nn as nn
-from dnaty import compress
-from dnaty.experiments.fast_dataset import FastDataset
+Supported backbones for `compress_with_backbone`: ResNet, MobileNetV2/V3, EfficientNet, VGG, DenseNet, ViT, and custom models with an `fc`/`classifier`/`head` attribute.
 
-model = nn.Sequential(
-    nn.Flatten(),
-    nn.Linear(784, 512), nn.ReLU(),
-    nn.Linear(512, 256), nn.ReLU(),
-    nn.Linear(256, 10),
-)
+Full reference with copy-paste recipes: [dnaty.org/docs](https://dnaty.org/docs)
 
-ds = FastDataset("MNIST", device="cpu", train_subset=30_000)
-result = compress(model, ds, target_flops=0.5, n_generations=50, seed=42)
-
-print(result.summary())
-# FLOPs -46.5% (1,133,056 → 605,802) | acc=0.9859 | arch=[301, 153, 128]
-```
-
-### CIFAR-10 — image classification
+### Example — pretrained backbone for edge deployment
 
 ```python
-import torch.nn as nn
-from dnaty import compress
-from dnaty.experiments.fast_dataset import FastDataset
+import torchvision.models as tv
+import dnaty
 
-model = nn.Sequential(
-    nn.Flatten(),
-    nn.Linear(3072, 1024), nn.ReLU(),
-    nn.Linear(1024, 512),  nn.ReLU(),
-    nn.Linear(512, 10),
+backbone = tv.mobilenet_v2(weights="IMAGENET1K_V1")
+dnaty.prune_conv_channels(backbone, amount=0.2)          # optional: thin convs first
+
+result = dnaty.compress_with_backbone(
+    backbone, train_loader,
+    target_flops=0.4,
+    finetune_backbone=True, finetune_epochs=10,
 )
-
-ds = FastDataset("CIFAR10", device="cpu", train_subset=50_000)
-result = compress(model, ds, target_flops=0.5, n_generations=30, seed=0)
-
-print(result.summary())
-# FLOPs reduction · +4.43 pp accuracy vs ResNet baseline
+result.export_onnx("mobilenet_edge.onnx", input_shape=(3, 224, 224))
 ```
 
-### Custom DataLoader
-
-dNATY works with any standard `torch.utils.data.DataLoader`:
-
-```python
-from torch.utils.data import DataLoader, TensorDataset
-import torch
-
-X = torch.randn(5_000, 128)
-y = torch.randint(0, 2, (5_000,))
-loader = DataLoader(TensorDataset(X, y), batch_size=256, shuffle=True)
-
-model = nn.Sequential(
-    nn.Linear(128, 256), nn.ReLU(),
-    nn.Linear(256, 128), nn.ReLU(),
-    nn.Linear(128, 2)
-)
-
-result = compress(model, loader, target_flops=0.4, n_generations=20)
-```
-
-### Deterministic results with seed
+### Deterministic results
 
 ```python
 result = compress(model, ds, target_flops=0.5, n_generations=30, seed=42)
-# Run again with the same seed → identical result
+# Same seed → identical result. The pytest suite gates every release on this.
 ```
 
-The **episodic memory** is dNATY's core differentiator. Unlike random search or gradient-based NAS, the search improves over generations by remembering what worked.
+---
+
+## Scope, stated plainly
+
+**Strong:** MLPs on tabular/sensor data; classifier heads on frozen CNN/ViT backbones; CPU-only environments.
+**Not yet:** full convolutional NAS end-to-end (under development — convs are handled by structural pruning today); transformer/LLM compression; models that are already minimal (no fat → little or no cut, and the library warns you when the model would need to *grow*).
+
+No comparison against OFA or MnasNet is claimed — those target full conv search spaces on GPUs; dNATY targets CPU-only workflows on a different problem slice.
 
 ---
 
 ## Installation
 
 ```bash
-pip install dnaty              # stable (recommended)
-pip install dnaty==1.1.0       # pin to specific version
-pip install git+https://github.com/pedrovergueiro/dNATY  # latest from source
+pip install dnaty                # stable (recommended)
+pip install dnaty==1.1.5         # pin to this release
+pip install git+https://github.com/pedrovergueiro/dNaty  # latest from source
 ```
 
 **Requirements:** Python 3.10+, PyTorch 2.0+, NumPy 1.24+
 
-Optional dev dependencies:
 ```bash
 pip install dnaty[dev]   # adds pytest, matplotlib, jupyter
 ```
@@ -239,63 +217,46 @@ pip install dnaty[dev]   # adds pytest, matplotlib, jupyter
 ## Project structure
 
 ```
-dNATY/
+dNaty/
 ├── dnaty/
-│   ├── compress.py              # public API: compress()
-│   ├── evolution/evolver.py     # DnatyEvolver — main search loop
-│   ├── core/
-│   │   ├── arch.py              # DynamicMLP — mutable architecture
-│   │   └── individual.py        # Individual = model + memory + fitness
-│   ├── operators/mutations.py   # 8 structural operators
-│   ├── training/local_train.py  # fast local trainer (AMP, FP32)
-│   └── experiments/
-│       └── fast_dataset.py      # FastDataset — zero-I/O loader
-├── dnaty_saas/                  # Production API (FastAPI + PostgreSQL)
-├── frontend/                    # Web UI (React + TypeScript + Tailwind)
-├── notebooks/                   # CIFAR-100, ImageNet experiments
-├── scripts/
-│   ├── prove_it.py              # reproduces all benchmark numbers
-│   └── demo_compress.py         # interactive demo
-└── tests/                       # pytest suite
+│   ├── compress.py              # public API: compress, compress_cnn,
+│   │                            #   compress_with_backbone, prune_conv_channels
+│   ├── result.py                # CompressResult + load() — save/export/latency
+│   ├── evolution/evolver.py     # DnatyEvolver / CnnEvolver — NSGA-II search
+│   ├── core/                    # DynamicMLP, DynamicCNN, Individual, episodic memory
+│   ├── operators/               # structural mutation operators (dense + conv)
+│   ├── training/local_train.py  # fast local trainer
+│   ├── monitoring/              # DriftDetector, ProductionTracker
+│   ├── utils/flops_counter.py   # count_flops, flops_by_layer
+│   └── experiments/fast_dataset.py  # zero-I/O MNIST/FashionMNIST/CIFAR10 loader
+├── scripts/                     # prove_it.py, benchmark_market_real.py, ...
+└── tests/                       # pytest suite (57 tests) — gates every release
 ```
 
 ---
 
-## Reproducing the benchmarks
+## Hosted version
 
-```bash
-# Full benchmark suite (~25 min on CPU)
-python scripts/prove_it.py
-
-# Quick demo (~5 min)
-python scripts/demo_compress.py
-
-# Run tests
-pytest tests/
-```
-
-Results are written to `results/` as JSON files.
+Prefer not to run it locally? [dnaty.org](https://dnaty.org) hosts the same engine with a web UI and REST API — upload a CSV, get a compressed model back. Free tier: 1 training a day, no card.
 
 ---
 
-## SaaS API
+## Citation
 
-dNATY ships with a production-ready API backend (FastAPI + PostgreSQL + Stripe).
-
-```bash
-cd dnaty_saas
-cp .env.example .env    # configure DATABASE_URL, JWT_SECRET, etc.
-pip install -r requirements.txt
-uvicorn main:app --reload
+```bibtex
+@software{vergueiro_dnaty_2026,
+  author  = {Vergueiro, Pedro},
+  title   = {dNaty: Dynamic Neuro-Adaptive sYstem with evoluTionarY Learning},
+  year    = {2026},
+  url     = {https://github.com/pedrovergueiro/dNaty},
+  version = {1.1.5},
+  license = {BSL-1.1}
+}
 ```
-
-**POST `/api/v1/compress`** — submit a compression job  
-**GET `/api/v1/compress/{job_id}`** — poll status and get results  
-See `/docs` (Swagger) when the server is running.
 
 ---
 
 ## License
 
-[Business Source License 1.1](LICENSE) — free for non-commercial use.  
-Contact [pedrol.vergueiro@gmail.com](mailto:pedrol.vergueiro@gmail.com) for commercial licensing.
+[Business Source License 1.1](https://github.com/pedrovergueiro/dNaty/blob/main/LICENSE) — free for research, academic work, and personal projects.
+Commercial use requires a license: [dnaty.org/commercial](https://dnaty.org/commercial) · [pedrol.vergueiro@gmail.com](mailto:pedrol.vergueiro@gmail.com)
