@@ -8,7 +8,7 @@
 
 **Up to 86% fewer FLOPs · accuracy kept · 18 benchmark datasets · no GPU required**
 
-[![PyPI version](https://img.shields.io/pypi/v/dnaty.svg?color=green)](https://pypi.org/project/dnaty/)
+[![PyPI version](https://img.shields.io/pypi/v/dnaty?color=green&cacheSeconds=300)](https://pypi.org/project/dnaty/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-3776ab.svg?logo=python&logoColor=white)](https://www.python.org/)
 [![PyTorch 2.0+](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg?logo=pytorch&logoColor=white)](https://pytorch.org/)
 [![License: BSL-1.1](https://img.shields.io/badge/License-BSL--1.1-orange.svg)](https://github.com/pedrovergueiro/dNaty/blob/main/LICENSE)
