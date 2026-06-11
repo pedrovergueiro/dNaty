@@ -1,0 +1,67 @@
+[
+  {
+    "name": "IoT Sensor Anomaly Detection",
+    "domain": "industrial IoT / predictive maintenance",
+    "samples": 50000,
+    "features": 42,
+    "classes": 2,
+    "accuracy": 0.99175,
+    "flops_reduction": 61.44859813084111,
+    "time_seconds": 372.97539496421814,
+    "n_generations": 15,
+    "n_pop": 12,
+    "type": "synthetic_market"
+  },
+  {
+    "name": "Healthcare Risk Stratification",
+    "domain": "medical / health insurance",
+    "samples": 25000,
+    "features": 89,
+    "classes": 3,
+    "accuracy": 0.93735,
+    "flops_reduction": 23.276601830663612,
+    "time_seconds": 205.93166828155518,
+    "n_generations": 15,
+    "n_pop": 12,
+    "type": "synthetic_market"
+  },
+  {
+    "name": "Financial Fraud Detection",
+    "domain": "fintech / payment systems",
+    "samples": 100000,
+    "features": 56,
+    "classes": 2,
+    "accuracy": 0.9931375,
+    "flops_reduction": 60.32094594594595,
+    "time_seconds": 791.2972626686096,
+    "n_generations": 15,
+    "n_pop": 12,
+    "type": "synthetic_market"
+  },
+  {
+    "name": "Telecom Churn Prediction",
+    "domain": "telecommunications / SaaS churn",
+    "samples": 35000,
+    "features": 67,
+    "classes": 2,
+    "accuracy": 0.9993928571428572,
+    "flops_reduction": 64.5946269132653,
+    "time_seconds": 249.3116557598114,
+    "n_generations": 15,
+    "n_pop": 12,
+    "type": "synthetic_market"
+  },
+  {
+    "name": "E-commerce Purchase Propensity",
+    "domain": "retail / online commerce",
+    "samples": 80000,
+    "features": 48,
+    "classes": 4,
+    "accuracy": 0.980265625,
+    "flops_reduction": 49.89035087719298,
+    "time_seconds": 622.4964778423309,
+    "n_generations": 15,
+    "n_pop": 12,
+    "type": "synthetic_market"
+  }
+]
