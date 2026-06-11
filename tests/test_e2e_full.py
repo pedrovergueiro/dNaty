@@ -6,6 +6,10 @@ Run after starting the backend with: ./run_backend_local.ps1
 Usage:
     python tests/test_e2e_full.py
 """
+if __name__ != "__main__":
+    import pytest
+    pytest.skip("requires a running backend — run manually: python tests/test_e2e_full.py", allow_module_level=True)
+
 import time
 import sys
 import json
@@ -170,8 +174,8 @@ if not completed:
 section("6 — GET RESULTS")
 
 if completed:
-    r = requests.get(f"{BASE}/results/{job_id}")
-    results_ok = check("GET /results/{job_id} → 200", r.status_code == 200, "")
+    r = requests.get(f"{BASE}/results/{job_id}", headers=free_headers)
+    results_ok = check("GET /results/{job_id} → 200", r.status_code == 200, f"HTTP {r.status_code}")
     if results_ok:
         res = r.json()
         check("  best_accuracy present", res.get("best_accuracy") is not None, f"{res.get('best_accuracy'):.4f}")

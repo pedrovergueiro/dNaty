@@ -132,11 +132,12 @@ def test_regression_tabular_mlp():
         baseline["flops_reduction_pct"], result.flops_reduction_pct))
     print("  Accuracy: {:.4f} vs {:.4f}".format(baseline["accuracy"], result.accuracy))
 
-    # Regression checks: Allow variance due to stochastic nature
-    flops_diff = abs(result.flops_reduction_pct - baseline["flops_reduction_pct"])
-    acc_diff = abs(result.accuracy - baseline["accuracy"])
+    # Regression: only fail if current is significantly WORSE than baseline
+    # (getting better compression is fine — that's not a regression)
+    flops_regressed = baseline["flops_reduction_pct"] - result.flops_reduction_pct
+    acc_diff = baseline["accuracy"] - result.accuracy
 
-    assert flops_diff < 15.0, "FLOPs reduction regressed by {:.1f}%".format(flops_diff)
+    assert flops_regressed < 15.0, "FLOPs reduction regressed by {:.1f}%".format(flops_regressed)
     assert acc_diff < 0.10, "Accuracy regressed by {:.4f}".format(acc_diff)
 
     print("\n[PASS] Tabular model regression check passed!")
