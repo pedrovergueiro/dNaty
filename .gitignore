@@ -69,8 +69,7 @@ test_write.txt
 gen_pdf_test.txt
 
 # Arquivos internos / lixo de desenvolvimento
-CITATION.cff
-CONTRIBUTING.md
+# (CITATION.cff e CONTRIBUTING.md são públicos — o site e o GitHub dependem deles)
 DESIGN_NEW.md
 Dockerfile
 FRONTEND_SETUP.md

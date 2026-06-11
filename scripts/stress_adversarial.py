@@ -1,5 +1,5 @@
 """
-Adversarial stress suite for dNATY 1.1.5 — hunts crashes, bad error messages,
+Adversarial stress suite for dNATY — hunts crashes, bad error messages,
 and contract inconsistencies. Tests the repo source, tiny budgets everywhere.
 Output: one line per scenario  [PASS|FAIL|CRASH]  + summary.
 """

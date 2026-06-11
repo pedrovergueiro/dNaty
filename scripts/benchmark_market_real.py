@@ -135,7 +135,7 @@ def benchmark_synthetic(name, domain, n_samples, n_features, n_classes, target_f
 
 def main():
     """Run 5 market-grade synthetic benchmarks (stable, reproducible, fast)."""
-    print("dNATY Market-Grade Benchmarks v1.1.5")
+    print("dNATY Market-Grade Benchmarks")
     print("="*70)
     print("Synthetic stable datasets: reproducible, deterministic, no data download issues\n")
 
