@@ -104,3 +104,8 @@ TESTING_CHECKLIST.md
 HACKER_LAB.html
 hacker_lab*.html
 *hacker*.html
+
+# Documentos internos de planejamento / pesquisa de mercado (não versionar)
+DNATY_ROADMAP_*.html
+archive (1)/
+scripts/benchmark_market_expansion.py
