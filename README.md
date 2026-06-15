@@ -230,7 +230,7 @@ dNaty/
 │   ├── utils/flops_counter.py   # count_flops, flops_by_layer
 │   └── experiments/fast_dataset.py  # zero-I/O MNIST/FashionMNIST/CIFAR10 loader
 ├── scripts/                     # prove_it.py, benchmark_market_real.py, ...
-└── tests/                       # pytest suite (57 tests) — gates every release
+└── tests/                       # pytest suite (72 tests) — gates every release
 ```
 
 ---

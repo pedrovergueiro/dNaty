@@ -84,6 +84,12 @@ run_backend_local.ps1
 train_mobilenet_cifar100.py
 example_compress.py
 
+# Internal planning / marketing docs — kept local, not published (research-facing repo)
+BENCHMARKS_REAL.md
+docs/MARKETING.md
+docs/ROADMAP_v1.1.x.md
+docs/ROADMAP_v1.2.x.md
+
 # Claude / AI generated analysis docs (não versionados)
 COMPLETE_*.md
 FINAL_*.md
