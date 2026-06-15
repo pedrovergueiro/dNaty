@@ -33,7 +33,7 @@ def _validate_target_flops(target_flops: float) -> None:
         raise ValueError(
             f"target_flops={target_flops} is out of range. It is a fraction of the "
             f"original FLOPs to keep: 0.5 aims for 50% fewer FLOPs. "
-            f"Valid range is (0, 1] — e.g. 0.3 aggressive, 0.5 balanced, 0.7 conservative."
+            f"Valid range is (0, 1] - e.g. 0.3 aggressive, 0.5 balanced, 0.7 conservative."
         )
 
 
@@ -148,7 +148,7 @@ def compress(
     # from scratch when NAS and fine-tune use the same dataset.
     if finetune_epochs > 0:
         if verbose:
-            print(f"\nPhase 2 — fine-tuning {finetune_epochs} epochs (LR 1e-4, no FLOPs pressure)...")
+            print(f"\nPhase 2 - fine-tuning {finetune_epochs} epochs (LR 1e-4, no FLOPs pressure)...")
         nas_acc = best.acc
         for _ in range(finetune_epochs):
             local_train(
@@ -161,7 +161,7 @@ def compress(
         best.acc = final_acc
         if verbose:
             delta = final_acc - nas_acc
-            print(f"Fine-tune acc: {final_acc:.4f}  (NAS: {nas_acc:.4f}  Δ={delta:+.4f})")
+            print(f"Fine-tune acc: {final_acc:.4f}  (NAS: {nas_acc:.4f}  delta={delta:+.4f})")
         compressed_flops  = best.count_flops()
         compressed_params = best.count_params()
 

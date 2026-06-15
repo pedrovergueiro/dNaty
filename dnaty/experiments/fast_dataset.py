@@ -44,7 +44,7 @@ class FastDataset:
             train_raw = torchvision.datasets.CIFAR10(data_dir, train=True,  download=True, transform=transform)
             test_raw  = torchvision.datasets.CIFAR10(data_dir, train=False, download=True, transform=transform)
         else:
-            raise ValueError(f"Dataset não suportado: {name}")
+            raise ValueError(f"Dataset not supported: {name}")
 
         # Carrega TUDO na memória de uma vez via DataLoader com batch grande
         def _load_all(dataset, subset=None):

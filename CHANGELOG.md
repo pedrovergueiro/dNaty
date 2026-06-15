@@ -2,6 +2,16 @@
 
 All notable changes to dNATY are documented here.
 
+## [1.1.7] - 2026-06-15 — Cross-platform console output + English-only messages
+
+### Fixed
+- **Windows console crash (`UnicodeEncodeError`)** — runtime output used non-ASCII glyphs (`Δ`, `δ`, `↓`, em-dash) that crash on the default Windows code page (cp1252). `compress()`, `result.summary()`, and the per-generation progress line now emit pure ASCII (`delta=`, `d_grad`/`d_mem`, `-`), so the README quickstart runs out-of-the-box on Windows as it already did on Linux/macOS.
+- **Portuguese leaking into user-facing messages** — the early-stop notice (`evolver`) and the unsupported-dataset error (`fast_dataset`) still printed Portuguese; both are now English.
+
+No API, behavior, or benchmark changes — output formatting only.
+
+---
+
 ## [1.1.6] - 2026-06-11 — Adversarial stress-suite fixes
 
 6 bugs found by `scripts/stress_adversarial.py` (38 adversarial scenarios across 7 categories).

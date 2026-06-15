@@ -35,7 +35,7 @@ class GenerationLog:
 
     def __repr__(self):
         return (f"Gen {self.gen:3d} | acc={self.best_acc:.4f} | "
-                f"δ_grad={self.delta_grad:.5f} | δ_mem={self.delta_mem:.5f} | "
+                f"d_grad={self.delta_grad:.5f} | d_mem={self.delta_mem:.5f} | "
                 f"params={self.n_params}")
 
 
@@ -250,7 +250,7 @@ class DnatyEvolver:
                 no_improve_count += 1
                 if no_improve_count >= early_stop_patience:
                     if self.verbose:
-                        print(f"\nEarly stop na gen {gen} — sem melhora em {early_stop_patience} gerações. acc={best_acc_ever:.4f}")
+                        print(f"\nEarly stop at gen {gen} - no improvement in {early_stop_patience} generations. acc={best_acc_ever:.4f}")
                     break
 
         best = max(self.population, key=lambda ind: ind.acc)

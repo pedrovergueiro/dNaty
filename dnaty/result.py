@@ -40,7 +40,7 @@ class CompressResult:
 
     def summary(self) -> str:
         def _fmt(pct: float) -> str:
-            sign = "↓" if pct > 0 else "↑" if pct < 0 else "="
+            sign = "-" if pct > 0 else "+" if pct < 0 else "="
             return f"{sign}{abs(pct):.1f}%"
         return (
             f"CompressResult | arch={self.arch} | "
