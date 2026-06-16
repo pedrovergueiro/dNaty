@@ -1,5 +1,5 @@
-"""
-dNATY compress — public API for model compression via evolutionary NAS.
+﻿"""
+dNATY compress -- public API for model compression via evolutionary NAS.
 
 Usage:
     from dnaty import compress
@@ -54,9 +54,9 @@ def compress(
     Find a smaller, faster architecture for the same task using evolutionary NAS.
 
     Two-phase process:
-      Phase 1 — NAS search: evolutionary search finds the best compressed
-                architecture (n_generations × n_pop candidates explored).
-      Phase 2 — Fine-tune: the winning architecture is trained from scratch
+      Phase 1 - NAS search: evolutionary search finds the best compressed
+                architecture (n_generations x n_pop candidates explored).
+      Phase 2 - Fine-tune: the winning architecture is trained from scratch
                 for finetune_epochs to maximise accuracy on the full dataset.
                 Set finetune_epochs=0 to skip (returns the NAS-phase model).
 
@@ -122,13 +122,13 @@ def compress(
     orig_flops  = sum(2 * layer_sizes[i] * layer_sizes[i + 1] for i in range(len(layer_sizes) - 1))
     orig_params = sum(p.numel() for p in model.parameters())
 
-    # ── Phase 1: NAS search ────────────────────────────────────────
+    # Phase 1: NAS search
     evolver.run(train_data, train_data, early_stop_patience=n_generations,
                 progress_callback=progress_callback)
 
     # Select best: most-compressed among those above accuracy floor.
     # Fallback: when nothing passes the floor, return the highest-accuracy
-    # individual (NOT min FLOPs — that would sacrifice accuracy for nothing).
+    # individual (NOT min FLOPs -- that would sacrifice accuracy for nothing).
     acc_floor = 0.90
     candidates = [ind for ind in evolver.population if ind.acc >= acc_floor]
     if candidates:
@@ -142,9 +142,9 @@ def compress(
     full_sizes = list(getattr(best.model, "layer_sizes", [input_size] + init_hidden))
     arch = full_sizes[1:]
 
-    # ── Phase 2: Fine-tune (continue from NAS weights) ────────────
+    # Phase 2: Fine-tune (continue from NAS weights)
     # Keeps the weights that NAS already tuned and polishes them at a
-    # lower learning rate — consistently better than re-initialising
+    # lower learning rate -- consistently better than re-initialising
     # from scratch when NAS and fine-tune use the same dataset.
     if finetune_epochs > 0:
         if verbose:
@@ -335,7 +335,7 @@ def compress_with_backbone(
     """
     Compress the classifier head of a CNN backbone using evolutionary NAS.
 
-    dNATY's NAS only optimises nn.Linear layers — it cannot restructure conv layers.
+    dNATY's NAS only optimises nn.Linear layers -- it cannot restructure conv layers.
     This function handles CNNs correctly without hiding that constraint:
 
       1. Freeze the backbone, extract embeddings in one pass (no training).
@@ -348,7 +348,7 @@ def compress_with_backbone(
 
     Args:
         backbone:           Pretrained CNN (ResNet, MobileNetV2, EfficientNet, etc.).
-        train_data:         DataLoader yielding (images, labels) — raw image tensors.
+        train_data:         DataLoader yielding (images, labels) -- raw image tensors.
         target_flops:       FLOPs target as fraction of original head FLOPs (0.5 = 50% less).
         n_generations:      NAS search generations.
         n_pop:              Population size per generation.
@@ -496,7 +496,7 @@ def prune_conv_channels(
 
     dNATY's NAS compresses MLP layers via architecture search.
     This function handles the conv backbone via structured channel pruning
-    (torch.nn.utils.prune), which is complementary — not overlapping.
+    (torch.nn.utils.prune), which is complementary -- not overlapping.
 
     Typical workflow for CNN compression:
         1. prune_conv_channels(backbone, amount=0.3)  # prune backbone channels

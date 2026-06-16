@@ -1,16 +1,16 @@
-"""
-Hook-based FLOPs counter — cost model per operation type.
+﻿"""
+Hook-based FLOPs counter -- cost model per operation type.
 
 Motivation (Mechanical-Flatbed, r/computervision):
   Shape-based counters miss the input spatial resolution: a Conv2d(64,64,3)
-  on a 32×32 feature map has 4× more FLOPs than on a 16×16 map, yet identical
+  on a 32x32 feature map has 4x more FLOPs than on a 16x16 map, yet identical
   parameter count. This module uses forward hooks to measure actual MACs.
 
 Supported ops:
-  nn.Linear       → 2 × in_features × out_features  (per sample)
-  nn.Conv2d       → 2 × k² × C_in/groups × C_out × H_out × W_out
-  nn.BatchNorm1d/2d → elements (cheap normalisation pass)
-  nn.ConvTranspose2d → same formula as Conv2d but H/W are upsampled
+  nn.Linear       -> 2 x in_features x out_features  (per sample)
+  nn.Conv2d       -> 2 x k^2 x C_in/groups x C_out x H_out x W_out
+  nn.BatchNorm1d/2d -> elements (cheap normalisation pass)
+  nn.ConvTranspose2d -> same formula as Conv2d but H/W are upsampled
 
 Usage:
     from dnaty.utils.flops_counter import count_flops, flops_by_layer
@@ -85,7 +85,7 @@ def flops_by_layer(
         device:      Device for the dummy tensor.
 
     Returns:
-        Dict mapping layer name → FLOPs (integer, single sample).
+        Dict mapping layer name -> FLOPs (integer, single sample).
     """
     store: dict[str, int] = {}
     dummy = torch.zeros(1, *input_shape, device=device)
@@ -105,7 +105,7 @@ def count_flops(
 ) -> int:
     """Total FLOPs for one forward pass (single sample).
 
-    Handles Linear, Conv2d, ConvTranspose2d, BatchNorm — correctly accounts
+    Handles Linear, Conv2d, ConvTranspose2d, BatchNorm -- correctly accounts
     for spatial resolution, groups, and depthwise separable layers.
     """
     return sum(flops_by_layer(model, input_shape, device).values())

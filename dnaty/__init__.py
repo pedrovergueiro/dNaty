@@ -1,8 +1,8 @@
-"""
-dNATY — Dynamic Neuro-Adaptive sYstem.
+﻿"""
+dNATY -- Dynamic Neuro-Adaptive sYstem.
 
 Evolutionary Neural Architecture Search with episodic memory.
-Finds compact, efficient models via guided evolution — not random search.
+Finds compact, efficient models via guided evolution -- not random search.
 
 Quick start:
     from dnaty import compress

@@ -1,7 +1,7 @@
-"""
-dNaty v5 — Treino local ultra-rápido.
-Suporta FastDataset (tensores em RAM) e DataLoader padrão.
-Otimizações: zero_grad(set_to_none=True), non_blocking, inference_mode, SAM simplificado.
+﻿"""
+dNATY v5 -- ultra-fast local training.
+Supports FastDataset (in-RAM tensors) and standard DataLoader.
+Optimisations: zero_grad(set_to_none=True), non_blocking, inference_mode, simplified SAM.
 """
 from __future__ import annotations
 import numpy as np
@@ -13,7 +13,7 @@ from dnaty.core.individual import Individual
 
 def local_train(
     ind: Individual,
-    loader,  # DataLoader OU FastDataset
+    loader,  # DataLoader or FastDataset
     n_epochs: int = 3,
     lr: float = 1e-3,
     lambda1: float = 1e-4,
@@ -25,10 +25,10 @@ def local_train(
     mixup_alpha: float = 0.2,
 ) -> tuple[float, float, float]:
     """
-    Treina ind por n_epochs. Retorna (loss_antes, loss_depois, grad_norm_medio).
-    Suporta FastDataset (get_train_batch) e DataLoader padrão.
-    augment_images: aplica RandomCrop+HFlip+mixup em input 4D (imagens). Ignorado p/ MLP (2D).
-    mixup_alpha: forca do mixup (Beta(a,a)); 0 desativa.
+    Train ind for n_epochs. Returns (loss_before, loss_after, mean_grad_norm).
+    Supports FastDataset (get_train_batch) and standard DataLoader.
+    augment_images: applies RandomCrop+HFlip+mixup to 4D inputs (images). Ignored for MLP (2D).
+    mixup_alpha: mixup strength (Beta(a,a)); 0 disables.
     """
     model = ind.model
     if next(model.parameters()).device != torch.device(device):
@@ -37,22 +37,21 @@ def local_train(
 
     model.train()
     optimizer = optim.Adam(model.parameters(), lr=lr, eps=1e-7, weight_decay=1e-4)
-    # Label smoothing: reduz overfit, melhora generalização ~0.3-0.5pp
+    # Label smoothing: reduces overfitting, improves generalisation ~0.3-0.5pp
     criterion = nn.CrossEntropyLoss(label_smoothing=0.05)
 
-    # Custo estrutural: calculado UMA vez por indivíduo
+    # Structural cost: computed ONCE per individual
     n_params = ind.count_params()
     n_flops  = ind.count_flops()
     cost_val = lambda1 * n_params * 1e-5 + lambda1 * 0.01 * n_flops * 1e-5
     cost_penalty = torch.tensor(cost_val, dtype=torch.float32, device=device)
 
-    # LR schedule: cosine annealing — alto no início, baixo no final
+    # LR schedule: cosine annealing -- high at start, low at end
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=n_epochs, eta_min=lr*0.1)
 
-    # Detecta se é FastDataset ou DataLoader
     is_fast = hasattr(loader, 'get_train_batch')
 
-    # Data augmentation lazy: só criada quando vê input 4D (imagem). MLP 2D nunca dispara.
+    # Lazy augmentation: only created when a 4D input (image) is seen. Never fires for MLP (2D).
     augment = None
     def _build_augment(img_size):
         import torchvision.transforms as _T
@@ -61,11 +60,11 @@ def local_train(
             _T.RandomHorizontalFlip(),
         ])
 
-    # Mixed precision (AMP): 2-3x mais rápido em GPU com Tensor Cores, no-op em CPU.
+    # Mixed precision (AMP): 2-3x faster on GPU with Tensor Cores, no-op on CPU.
     device_type = "cuda" if str(device).startswith("cuda") else "cpu"
     use_amp = device_type == "cuda"
     if use_amp:
-        torch.backends.cudnn.benchmark = True  # autotuna kernels conv p/ shapes fixos
+        torch.backends.cudnn.benchmark = True  # auto-tunes conv kernels for fixed shapes
     scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
 
     loss_first = 0.0
@@ -78,7 +77,7 @@ def local_train(
         n_batches = 0
 
         if is_fast:
-            # ceil division: 1000 samples / 512 batch → 2 batches, not 1
+            # ceil division: 1000 samples / 512 batch -> 2 batches, not 1
             import math
             n_batches_per_epoch = max(1, math.ceil(loader.n_train / batch_size))
             batches = [loader.get_train_batch(batch_size) for _ in range(n_batches_per_epoch)]
@@ -108,7 +107,7 @@ def local_train(
                     loss = criterion(out, yb) + cost_penalty
             scaler.scale(loss).backward()
 
-            # Unscale antes de medir norma do gradiente (AMP escala os grads)
+            # Unscale before measuring gradient norm (AMP scales grads)
             scaler.unscale_(optimizer)
             with torch.no_grad():
                 gn_sq = sum(
@@ -137,10 +136,10 @@ def local_train(
 @torch.inference_mode()
 def evaluate(
     ind: Individual,
-    loader,  # DataLoader OU FastDataset
+    loader,  # DataLoader or FastDataset
     device: str = "cpu",
 ) -> tuple[float, float]:
-    """Retorna (accuracy, loss). Suporta FastDataset e DataLoader."""
+    """Return (accuracy, loss). Supports FastDataset and DataLoader."""
     model = ind.model
     if next(model.parameters()).device != torch.device(device):
         model = model.to(device)
@@ -160,7 +159,7 @@ def evaluate(
 
     if is_fast:
         vx, vy = loader.get_val()
-        # Avalia em chunks para não explodir VRAM
+        # Evaluate in chunks to avoid OOM on VRAM
         chunk = 2048
         for i in range(0, len(vx), chunk):
             xb = vx[i:i+chunk].to(device, non_blocking=True)
@@ -188,7 +187,7 @@ def micro_adapt(
     top_k_pct: float = 0.03,
     device: str = "cpu",
 ) -> None:
-    """Micro-adaptação: atualiza top-k% parâmetros por ‖∂L/∂θ_j‖."""
+    """Micro-adaptation: updates the top-k% parameters by gradient magnitude ||dL/dtheta_j||."""
     model = ind.model.to(device)
     model.train()
     criterion = nn.CrossEntropyLoss()

@@ -1,6 +1,6 @@
-"""
-Representação da arquitetura como grafo dirigido acíclico (DAG).
-A_i = (V_i, E_i, φ_i, Ω_i)
+﻿"""
+Architecture representation as a directed acyclic graph (DAG).
+A_i = (V_i, E_i, phi_i, Omega_i)
 """
 from __future__ import annotations
 import torch
@@ -27,8 +27,8 @@ def next_innovation() -> int:
 
 class DynamicMLP(nn.Module):
     """
-    MLP com arquitetura mutável. Representado como lista de camadas lineares.
-    Suporta os 8 operadores densos + skip connections.
+    MLP with mutable architecture. Represented as a list of linear layers.
+    Supports the 8 dense mutation operators + skip connections.
     """
 
     def __init__(self, layer_sizes: list[int], activations: list[str] | None = None, n_classes: int = 10):
@@ -43,7 +43,7 @@ class DynamicMLP(nn.Module):
         layers = []
         for i in range(len(self.layer_sizes) - 1):
             layers.append(nn.Linear(self.layer_sizes[i], self.layer_sizes[i + 1]))
-            # BatchNorm antes da ativação — estabiliza treino, permite LR maior
+            # BatchNorm before activation -- stabilizes training, allows higher LR
             layers.append(nn.BatchNorm1d(self.layer_sizes[i + 1]))
             act = self.activations[i] if i < len(self.activations) else "relu"
             layers.append(ACTIVATIONS.get(act, nn.ReLU)())
@@ -54,7 +54,7 @@ class DynamicMLP(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = x.view(x.size(0), -1)
         if x.dtype != torch.float32:
-            # pandas .values / numpy default to float64 — casting here beats the
+            # pandas .values / numpy default to float64 -- casting here beats the
             # cryptic "mat1 and mat2 must have the same dtype" deep in nn.Linear
             x = x.float()
         layer_outputs = [x]

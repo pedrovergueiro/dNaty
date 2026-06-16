@@ -1,5 +1,5 @@
 """
-NSGA-II vetorizado com numpy — O(n²) mas sem loops Python internos.
+Vectorized NSGA-II with numpy -- O(n^2) but no inner Python loops.
 """
 from __future__ import annotations
 import numpy as np
@@ -8,20 +8,20 @@ from dnaty.core.individual import Individual
 
 def fast_non_dominated_sort(fitnesses: list[tuple]) -> list[list[int]]:
     """
-    Vetorizado: converte fitnesses para matriz numpy e usa broadcasting.
+    Vectorized: converts fitnesses to a numpy matrix and uses broadcasting.
+    F[i] dominates F[j] if F[i] >= F[j] on all objectives and F[i] > F[j] on at least one.
     """
     n = len(fitnesses)
     F = np.array(fitnesses, dtype=np.float64)  # (n, n_obj)
 
-    # F[i] domina F[j] se F[i] >= F[j] em tudo e F[i] > F[j] em algo
-    # Broadcasting: (n,1,obj) >= (1,n,obj) → (n,n,obj)
-    ge = F[:, None, :] >= F[None, :, :]  # (n,n,obj) — i >= j em cada obj
-    gt = F[:, None, :] >  F[None, :, :]  # (n,n,obj) — i >  j em algum obj
+    # Broadcasting: (n,1,obj) >= (1,n,obj) -> (n,n,obj)
+    ge = F[:, None, :] >= F[None, :, :]  # (n,n,obj) -- i >= j on each obj
+    gt = F[:, None, :] >  F[None, :, :]  # (n,n,obj) -- i >  j on some obj
 
-    dominates = ge.all(axis=2) & gt.any(axis=2)  # (n,n) — i domina j
+    dominates = ge.all(axis=2) & gt.any(axis=2)  # (n,n) -- i dominates j
     np.fill_diagonal(dominates, False)
 
-    domination_count = dominates.sum(axis=0)   # quantos dominam i
+    domination_count = dominates.sum(axis=0)   # how many individuals dominate i
     dominated_by = [list(np.where(dominates[i])[0]) for i in range(n)]
 
     fronts: list[list[int]] = [list(np.where(domination_count == 0)[0])]

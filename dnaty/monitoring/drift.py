@@ -1,13 +1,13 @@
-"""
+﻿"""
 Data drift detection for production monitoring (Inner-Image-6313, r/deeplearning).
 
 Uses Population Stability Index (PSI) and KL divergence to detect when the
 input distribution has shifted from the training baseline.
 
 PSI interpretation:
-  < 0.1  → no significant change
-  0.1–0.2 → minor shift, monitor
-  > 0.2  → significant drift — consider recompression/retraining
+  < 0.1  -> no significant change
+  0.1-0.2 -> minor shift, monitor
+  > 0.2  -> significant drift -- consider recompression/retraining
 
 Usage:
     from dnaty.monitoring import DriftDetector
@@ -45,7 +45,7 @@ class DriftDetector:
         """
         Args:
             n_bins:         Histogram bins per feature.
-            psi_threshold:  PSI above this → drifted=True (0.2 = industry standard).
+            psi_threshold:  PSI above this -> drifted=True (0.2 = industry standard).
             smoothing:      Additive smoothing to avoid log(0).
             threshold:      Alias for psi_threshold (matches the published docs).
         """
@@ -84,13 +84,13 @@ class DriftDetector:
 
         Returns:
             dict with keys:
-              psi_mean     — mean PSI across features
-              psi_max      — max PSI (worst feature)
-              kl_mean      — mean KL divergence
-              psi_per_feature — list[float]
-              kl_per_feature  — list[float]
-              drifted      — True if psi_mean > psi_threshold
-              n_samples    — number of samples scored
+              psi_mean     -- mean PSI across features
+              psi_max      -- max PSI (worst feature)
+              kl_mean      -- mean KL divergence
+              psi_per_feature -- list[float]
+              kl_per_feature  -- list[float]
+              drifted      -- True if psi_mean > psi_threshold
+              n_samples    -- number of samples scored
         """
         self._check_fitted()
         arr = _to_numpy(data)
@@ -107,21 +107,21 @@ class DriftDetector:
             hist, _ = np.histogram(col, bins=edges)
             actual = _smooth(hist, self.smoothing)
 
-            # PSI = Σ (actual - expected) × ln(actual / expected)
+            # PSI = Sum (actual - expected) x ln(actual / expected)
             psi = float(np.sum((actual - baseline) * np.log(actual / baseline)))
             psi_list.append(psi)
 
-            # KL(baseline ‖ actual) = Σ baseline × ln(baseline / actual)
+            # KL(baseline || actual) = Sum baseline x ln(baseline / actual)
             kl = float(np.sum(baseline * np.log(baseline / actual)))
             kl_list.append(kl)
 
         psi_mean = float(np.mean(psi_list))
         return {
-            "psi": psi_mean,  # alias of psi_mean — matches the published docs
+            "psi": psi_mean,  # alias of psi_mean -- matches the published docs
             "psi_mean": psi_mean,
             "psi_max": float(np.max(psi_list)),
             "kl_mean": float(np.mean(kl_list)),
-            "kl_divergence": float(np.mean(kl_list)),  # alias — matches the published docs
+            "kl_divergence": float(np.mean(kl_list)),  # alias -- matches the published docs
             "psi_per_feature": psi_list,
             "kl_per_feature": kl_list,
             "drifted": psi_mean > self.psi_threshold,
@@ -139,7 +139,7 @@ class DriftDetector:
             raise RuntimeError("Call .fit(train_data) before scoring.")
 
 
-# ── helpers ─────────────────────────────────────────────────────────────────
+# -- helpers -----------------------------------------------------------------
 
 def _to_numpy(data: "np.ndarray | torch.Tensor") -> np.ndarray:
     if isinstance(data, torch.Tensor):

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Production pipeline tracker (Inner-Image-6313, r/deeplearning).
 
 Wraps a compressed model with:
@@ -102,10 +102,10 @@ class ProductionTracker:
         Returns:
             predictions: int array of class indices, shape (N,).
             meta: dict with keys:
-              confidences  — max softmax probability per sample
-              alert        — None or alert string ("DRIFT DETECTED", "LOW CONFIDENCE")
-              drift_score  — latest drift PSI (None until first check)
-              latency_ms   — inference latency for this batch
+              confidences  -- max softmax probability per sample
+              alert        -- None or alert string ("DRIFT DETECTED", "LOW CONFIDENCE")
+              drift_score  -- latest drift PSI (None until first check)
+              latency_ms   -- inference latency for this batch
         """
         if not isinstance(x, torch.Tensor):
             x = torch.tensor(np.asarray(x, dtype=np.float32))
@@ -155,7 +155,7 @@ class ProductionTracker:
             "confidences": confidences,
             "alert": alert,
             "drift_score": drift_score,
-            "psi": drift_score,  # alias of drift_score — matches the published docs
+            "psi": drift_score,  # alias of drift_score -- matches the published docs
             "latency_ms": latency_ms,
             "n_samples": len(predictions),
         }
@@ -213,7 +213,7 @@ class ProductionTracker:
         self._last_drift_report = None
 
 
-# ── helpers ─────────────────────────────────────────────────────────────────
+# -- helpers -----------------------------------------------------------------
 
 def _flat(x: "np.ndarray | torch.Tensor") -> np.ndarray:
     if isinstance(x, torch.Tensor):

@@ -1,6 +1,6 @@
-"""
-Operadores estruturais para DynamicCNN — CIFAR-10.
-Operadores 9 e 10 agora são reais (não proxy).
+﻿"""
+Structural mutation operators for DynamicCNN -- CIFAR-10.
+Operators 9 and 10 are now real (not proxy).
 """
 from __future__ import annotations
 import torch
@@ -13,15 +13,15 @@ from dnaty.core.individual import Individual
 from dnaty.core.memory import EpisodicMemory
 
 CNN_OPERATORS = [
-    "add_conv_block",       # Op 9 real: adiciona bloco Conv2D+BN+ReLU
-    "depthwise_sep",        # Op 10 real: adiciona bloco depthwise separable
-    "swap_conv_to_dw",      # Layer swap: substitui Conv padrão por DwConv (~8-9x menos FLOPs)
-    "add_fc_neuron",        # Op 1 adaptado: adiciona neurônio na FC
-    "remove_fc_neuron",     # Op 2 adaptado: remove neurônio da FC
-    "change_stride",        # Op novo: muda stride de um bloco (downsampling)
-    "add_skip_conv",        # Op 3 adaptado: skip connection entre blocos conv
-    "prune_channels",       # Op 7 adaptado: reduz canais de um bloco
-    "duplicate_conv_block", # Op 8 adaptado: duplica bloco conv com ruído
+    "add_conv_block",       # Op 9 real: add Conv2D+BN+ReLU block
+    "depthwise_sep",        # Op 10 real: add depthwise separable block
+    "swap_conv_to_dw",      # Layer swap: replace standard Conv with DwConv (~8-9x fewer FLOPs)
+    "add_fc_neuron",        # Op 1 adapted: add neuron to FC layer
+    "remove_fc_neuron",     # Op 2 adapted: remove neuron from FC layer
+    "change_stride",        # New op: change stride of a block (more aggressive downsampling)
+    "add_skip_conv",        # Op 3 adapted: skip connection between conv blocks
+    "prune_channels",       # Op 7 adapted: reduce channels in a block
+    "duplicate_conv_block", # Op 8 adapted: duplicate conv block with noise
 ]
 
 
@@ -37,7 +37,7 @@ def _clone_cnn(ind: Individual) -> Individual:
 
 
 def add_conv_block(ind: Individual) -> tuple[Individual, bool]:
-    """Op 9 REAL: adiciona bloco Conv2D+BN+ReLU após o último bloco conv."""
+    """Op 9 REAL: add a Conv2D+BN+ReLU block after the last conv block."""
     model = ind.model
     if not isinstance(model, DynamicCNN):
         return ind, False
@@ -47,7 +47,7 @@ def add_conv_block(ind: Individual) -> tuple[Individual, bool]:
         device = torch.device("cpu")
 
     last_ch = model.conv_configs[-1]["out_ch"]
-    # Dobrar canais até 256 máximo
+    # Double channels up to a maximum of 256
     new_ch = min(last_ch * 2, 256)
     new_cfg = {"type": "conv", "in_ch": last_ch, "out_ch": new_ch, "stride": 1, "kernel": 3}
 
@@ -55,7 +55,7 @@ def add_conv_block(ind: Individual) -> tuple[Individual, bool]:
     new_model = DynamicCNN(new_configs, list(model.fc_sizes), model.n_classes, model.in_channels)
     new_model = new_model.to(device)
 
-    # Copiar pesos dos blocos existentes
+    # Copy weights from existing blocks
     for i, (old_layer, new_layer) in enumerate(zip(model.conv_layers, new_model.conv_layers)):
         new_layer.load_state_dict(old_layer.state_dict())
     # Copiar FC
@@ -68,7 +68,7 @@ def add_conv_block(ind: Individual) -> tuple[Individual, bool]:
 
 
 def depthwise_sep(ind: Individual) -> tuple[Individual, bool]:
-    """Op 10 REAL: adiciona bloco depthwise separable — k² vezes mais eficiente."""
+    """Op 10 REAL: add a depthwise separable block -- k^2 times more efficient."""
     model = ind.model
     if not isinstance(model, DynamicCNN):
         return ind, False
@@ -96,11 +96,11 @@ def depthwise_sep(ind: Individual) -> tuple[Individual, bool]:
 
 
 def swap_conv_to_dw(ind: Individual) -> tuple[Individual, bool]:
-    """Layer swap: substitui um bloco Conv2D padrão por DepthwiseSeparable.
+    """Layer swap: replace a standard Conv2D block with DepthwiseSeparable.
 
-    Reduz FLOPs ~8-9× na camada trocada (k²×Cin×Cout → k²×Cin + Cin×Cout).
-    Só candidatos com stride=1 e Cin >= 16 para manter qualidade.
-    Custo computacional correto verificado via hook-based FLOPs counter.
+    Reduces FLOPs ~8-9x in the swapped layer (k^2*Cin*Cout -> k^2*Cin + Cin*Cout).
+    Only candidates with stride=1 and Cin >= 16 to preserve quality.
+    Computational cost verified via hook-based FLOPs counter.
     """
     model = ind.model
     if not isinstance(model, DynamicCNN):
@@ -110,8 +110,8 @@ def swap_conv_to_dw(ind: Individual) -> tuple[Individual, bool]:
     except StopIteration:
         device = torch.device("cpu")
 
-    # Candidatos: blocos Conv padrão com stride=1 (DwConv requer stride=1)
-    # out_ch >= 8 garante que a pointwise faça sentido
+    # Candidates: standard Conv blocks with stride=1 (DwConv requires stride=1)
+    # out_ch >= 8 ensures the pointwise stage is meaningful
     candidates = [
         i for i, c in enumerate(model.conv_configs)
         if c["type"] == "conv" and c.get("stride", 1) == 1 and c.get("out_ch", 0) >= 8
@@ -132,13 +132,13 @@ def swap_conv_to_dw(ind: Individual) -> tuple[Individual, bool]:
     new_model = DynamicCNN(new_configs, list(model.fc_sizes), model.n_classes, model.in_channels)
     new_model = new_model.to(device)
 
-    # Copia blocos não alterados
+    # Copy unmodified blocks
     for i, (old_l, new_l) in enumerate(zip(model.conv_layers, new_model.conv_layers)):
         if i != idx:
             try:
                 new_l.load_state_dict(old_l.state_dict())
             except Exception:
-                pass  # shape mudou — inicialização aleatória ok
+                pass  # shape changed -- random initialisation is fine
     new_model.fc.load_state_dict(model.fc.state_dict())
     new_model.classifier.load_state_dict(model.classifier.state_dict())
 
@@ -148,7 +148,7 @@ def swap_conv_to_dw(ind: Individual) -> tuple[Individual, bool]:
 
 
 def add_fc_neuron(ind: Individual) -> tuple[Individual, bool]:
-    """Adiciona neurônio na última camada FC."""
+    """Add neurons to the last FC layer."""
     model = ind.model
     if not isinstance(model, DynamicCNN) or not model.fc_sizes:
         return ind, False
@@ -158,7 +158,7 @@ def add_fc_neuron(ind: Individual) -> tuple[Individual, bool]:
         device = torch.device("cpu")
 
     new_fc = list(model.fc_sizes)
-    new_fc[-1] += 16  # adiciona 16 neurônios
+    new_fc[-1] += 16  # add 16 neurons
     new_model = DynamicCNN(list(model.conv_configs), new_fc, model.n_classes, model.in_channels)
     new_model = new_model.to(device)
 
@@ -171,7 +171,7 @@ def add_fc_neuron(ind: Individual) -> tuple[Individual, bool]:
 
 
 def remove_fc_neuron(ind: Individual) -> tuple[Individual, bool]:
-    """Remove neurônios da última camada FC (mínimo 32)."""
+    """Remove neurons from the last FC layer (minimum 32)."""
     model = ind.model
     if not isinstance(model, DynamicCNN) or not model.fc_sizes or model.fc_sizes[-1] <= 32:
         return ind, False
@@ -194,7 +194,7 @@ def remove_fc_neuron(ind: Individual) -> tuple[Individual, bool]:
 
 
 def change_stride(ind: Individual) -> tuple[Individual, bool]:
-    """Muda stride de um bloco intermediário para 2 (downsampling mais agressivo)."""
+    """Change the stride of an intermediate block to 2 (more aggressive downsampling)."""
     model = ind.model
     if not isinstance(model, DynamicCNN) or len(model.conv_configs) < 2:
         return ind, False
@@ -203,7 +203,7 @@ def change_stride(ind: Individual) -> tuple[Individual, bool]:
     except StopIteration:
         device = torch.device("cpu")
 
-    # Escolher bloco intermediário com stride=1 para mudar para 2
+    # Pick an intermediate block with stride=1 to change to 2
     candidates = [i for i, c in enumerate(model.conv_configs[1:], 1) if c.get("stride", 1) == 1]
     if not candidates:
         return ind, False
@@ -221,13 +221,13 @@ def change_stride(ind: Individual) -> tuple[Individual, bool]:
 
 
 def add_skip_conv(ind: Individual) -> tuple[Individual, bool]:
-    """Adiciona skip connection entre dois blocos conv (via 1×1 conv se canais diferentes)."""
-    # Implementado como adição de bloco residual — simplificado
+    """Add a skip connection between two conv blocks (via 1x1 conv if channels differ)."""
+    # Implemented as adding a residual block -- simplified
     return add_conv_block(ind)
 
 
 def prune_channels(ind: Individual) -> tuple[Individual, bool]:
-    """Reduz canais de um bloco conv pela metade (mínimo 16)."""
+    """Halve the channels of a conv block (minimum 16)."""
     model = ind.model
     if not isinstance(model, DynamicCNN):
         return ind, False
@@ -236,7 +236,7 @@ def prune_channels(ind: Individual) -> tuple[Individual, bool]:
     except StopIteration:
         device = torch.device("cpu")
 
-    # Escolher bloco com mais de 32 canais
+    # Pick a block with more than 32 channels
     candidates = [i for i, c in enumerate(model.conv_configs) if c["out_ch"] > 32]
     if not candidates:
         return ind, False
@@ -245,7 +245,7 @@ def prune_channels(ind: Individual) -> tuple[Individual, bool]:
     new_configs = [dict(c) for c in model.conv_configs]
     new_configs[idx]["out_ch"] = max(16, new_configs[idx]["out_ch"] // 2)
 
-    # Corrigir in_ch do próximo bloco
+    # Propagate in_ch to the next block
     if idx + 1 < len(new_configs):
         new_configs[idx + 1]["in_ch"] = new_configs[idx]["out_ch"]
 
@@ -258,7 +258,7 @@ def prune_channels(ind: Individual) -> tuple[Individual, bool]:
 
 
 def duplicate_conv_block(ind: Individual) -> tuple[Individual, bool]:
-    """Duplica o último bloco conv com ruído ε nos pesos."""
+    """Duplicate the last conv block with weight noise eps."""
     model = ind.model
     if not isinstance(model, DynamicCNN):
         return ind, False
@@ -268,7 +268,7 @@ def duplicate_conv_block(ind: Individual) -> tuple[Individual, bool]:
         device = torch.device("cpu")
 
     last_cfg = dict(model.conv_configs[-1])
-    # Bloco duplicado: mesmos canais, stride=1
+    # Duplicated block: same channels, stride=1
     dup_cfg = {"type": last_cfg["type"], "in_ch": last_cfg["out_ch"],
                "out_ch": last_cfg["out_ch"], "stride": 1}
 
@@ -278,7 +278,7 @@ def duplicate_conv_block(ind: Individual) -> tuple[Individual, bool]:
 
     for i, (old_l, new_l) in enumerate(zip(model.conv_layers, new_model.conv_layers)):
         new_l.load_state_dict(old_l.state_dict())
-    # Adicionar ruído no bloco duplicado
+    # Add noise to the duplicated block
     with torch.no_grad():
         for p in new_model.conv_layers[-1].parameters():
             p.data += torch.randn_like(p) * 0.01

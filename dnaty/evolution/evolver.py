@@ -1,12 +1,12 @@
-"""
-dNatyEvolver — Algorithm 1 otimizado para velocidade máxima.
+﻿"""
+DnatyEvolver -- Algorithm 1, optimized for maximum throughput.
 
-Otimizações vs versão anterior:
-  1. Treino sequencial otimizado (CUDA não beneficia de múltiplos streams)
-  2. evaluate com torch.inference_mode
-  3. NSGA-II vetorizado com numpy
-  4. EpisodicMemory com scores incrementais O(1)
-  5. model.to(device) idempotente
+Key optimizations:
+  1. Sequential local training (CUDA does not benefit from multiple streams)
+  2. evaluate() uses torch.inference_mode
+  3. Vectorized NSGA-II with numpy
+  4. EpisodicMemory with incremental O(1) score updates
+  5. model.to(device) is idempotent
 """
 from __future__ import annotations
 import numpy as np
@@ -89,7 +89,7 @@ class DnatyEvolver:
         if seed is None:
             self.population = [self._make_individual() for _ in range(self.n_pop)]
         else:
-            # Primeiro indivíduo é o seed; restantes são mutações do seed
+            # First individual is the seed; the rest are mutations of the seed
             self.population = [seed.clone()]
             for _ in range(self.n_pop - 1):
                 op = np.random.choice(OPERATORS)
@@ -100,8 +100,8 @@ class DnatyEvolver:
 
     def _fitness(self, ind: Individual) -> tuple[float, float, float]:
         # lambda2 controls FLOPs weight in Pareto selection:
-        #   1e-6 → real compression pressure (NAS default)
-        #   1e-8 → negligible FLOPs pressure (CL: preserves accuracy over efficiency)
+        #   1e-6 -> real compression pressure (NAS default)
+        #   1e-8 -> negligible FLOPs pressure (CL: preserves accuracy over efficiency)
         cost = ind.count_params() * 1e-5 + ind.count_flops() * self.lambda2
         ind.fitness = (ind.acc, -cost, 0.0)
         return ind.fitness
@@ -111,7 +111,7 @@ class DnatyEvolver:
         population: list[Individual],
         val_loader: torch.utils.data.DataLoader,
     ) -> list[tuple[float, float, float]]:
-        """Avalia todos os indivíduos — sequencial mas com inference_mode."""
+        """Evaluate all individuals sequentially using inference_mode."""
         fitnesses = []
         for ind in population:
             acc, _ = evaluate(ind, val_loader, self.device)
@@ -124,7 +124,7 @@ class DnatyEvolver:
         mutated: list[Individual],
         train_loader: torch.utils.data.DataLoader,
     ) -> tuple[list[float], list[float], list[float]]:
-        """Treina todos os indivíduos sequencialmente — CUDA não é thread-safe para múltiplos streams."""
+        """Train all individuals sequentially -- CUDA is not thread-safe across multiple streams."""
         loss_before, loss_after, grad_norms = [], [], []
         for ind in mutated:
             lb, la, gn = local_train(
@@ -160,13 +160,13 @@ class DnatyEvolver:
         mutated: list[Individual],
         prev_best_acc: float,
         grad_norms: list[float],
-        prev_accs: list[float],  # acurácia de cada indivíduo ANTES da mutação
+        prev_accs: list[float],  # accuracy of each individual BEFORE mutation
     ) -> float:
         delta_mem = 0.0
         for i, ind in enumerate(mutated):
             if ind.last_op == "no_op":
                 continue
-            # Melhora em relação ao pai (não só ao melhor global)
+            # Improvement relative to the parent (not just the global best)
             parent_acc = prev_accs[i] if i < len(prev_accs) else prev_best_acc
             if ind.acc > parent_acc + 1e-5:
                 exp = Experience(
@@ -197,11 +197,11 @@ class DnatyEvolver:
 
         pbar = tqdm(range(1, self.n_generations + 1), disable=not self.verbose)
         for gen in pbar:
-            # ── FASE 1: Variação guiada pela memória ──────────────────────
-            prev_accs = [ind.acc for ind in self.population]  # acurácia dos pais
+            # Phase 1: memory-guided variation
+            prev_accs = [ind.acc for ind in self.population]  # parent accuracies
             mutated = self._mutate_population(self.population)
 
-            # ── FASE 2: Treino local (Lema 2) ─────────────────────────────
+            # Phase 2: local training (Lemma 2)
             loss_before_list, loss_after_list, grad_norms = self._train_parallel(
                 mutated, train_loader
             )
@@ -209,15 +209,15 @@ class DnatyEvolver:
                 b - a for b, a in zip(loss_before_list, loss_after_list)
             ]))
 
-            # ── FASE 3: Avaliação multiobjetivo ───────────────────────────
+            # Phase 3: multi-objective evaluation
             mut_fitnesses = self._eval_population(mutated, val_loader)
 
-            # ── FASE 4: Seleção NSGA-II ───────────────────────────────────
+            # Phase 4: NSGA-II selection
             combined_pop = self.population + mutated
             combined_fit = fitnesses + mut_fitnesses
             self.population, fitnesses = nsga2_select(combined_pop, combined_fit, self.n_pop)
 
-            # ── FASE 5: Atualização de memória (Lema 1) ───────────────────
+            # Phase 5: memory update (Lemma 1)
             delta_mem = self._update_memory(mutated, prev_best_acc, grad_norms, prev_accs)
 
             best_ind = max(self.population, key=lambda ind: ind.acc)
@@ -242,7 +242,7 @@ class DnatyEvolver:
                 except Exception:
                     pass
 
-            # ── Early stopping ────────────────────────────────────────────
+            # -- Early stopping --------------------------------------------
             if best_ind.acc > best_acc_ever + early_stop_min_delta:
                 best_acc_ever = best_ind.acc
                 no_improve_count = 0
@@ -259,14 +259,14 @@ class DnatyEvolver:
 
 class CnnEvolver(DnatyEvolver):
     """
-    Evolver para DynamicCNN — usa operadores CNN reais (Conv2D, DepthwiseSep, etc.).
-    Mesma lógica de evolução do DnatyEvolver, mas _make_individual e _mutate_population
-    operam sobre DynamicCNN em vez de DynamicMLP.
+    Evolver for DynamicCNN -- uses real CNN operators (Conv2D, DepthwiseSep, etc.).
+    Same evolution logic as DnatyEvolver, but _make_individual and _mutate_population
+    operate on DynamicCNN instead of DynamicMLP.
     """
 
     def _make_individual(self) -> Individual:
         from dnaty.core.arch_cnn import DynamicCNN
-        # Use self.n_classes — critical for datasets that are not CIFAR-10 (10 classes)
+        # Use self.n_classes -- critical for datasets that are not CIFAR-10 (10 classes)
         model = DynamicCNN(n_classes=self.n_classes)
         return Individual(model, EpisodicMemory(decay_gamma=self.memory_gamma))
 

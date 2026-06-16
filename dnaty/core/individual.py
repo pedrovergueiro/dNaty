@@ -1,5 +1,5 @@
 """
-Indivíduo dNaty: M_i = (θ_i, A_i, 𝓜_i)
+dNATY individual: M_i = (theta_i, A_i, M_i)
 """
 from __future__ import annotations
 from copy import deepcopy

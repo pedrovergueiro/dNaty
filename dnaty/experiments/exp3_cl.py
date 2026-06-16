@@ -1,6 +1,6 @@
-"""
-Experimento 3 — Split-MNIST: Continual Learning v5.
-FastDataset por task — zero I/O durante treino.
+﻿"""
+Experiment 3 -- Split-MNIST: Continual Learning v5.
+FastDataset per task -- zero I/O during training.
 """
 from __future__ import annotations
 import os, json, time
@@ -25,7 +25,7 @@ os.makedirs(RESULTS_DIR, exist_ok=True)
 
 
 class FastTaskDataset:
-    """Carrega uma task do Split-MNIST em RAM — zero I/O durante treino."""
+    """Load one Split-MNIST task into RAM -- zero I/O during training."""
 
     def __init__(self, task_id: int, device: str = "cpu", data_dir: str = "./data", train_subset=None):
         transform = T.Compose([T.ToTensor(), T.Normalize((0.1307,), (0.3081,))])
@@ -238,7 +238,7 @@ def main():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Device: {device}")
     print(f"\n{'='*60}")
-    print("Experimento 3 — Split-MNIST CL v5 (FastDataset)")
+    print("Experiment 3 -- Split-MNIST CL v5 (FastDataset)")
     print(f"{'='*60}")
 
     dnaty_results, ewc_results, mlp_results = [], [], []
@@ -246,7 +246,7 @@ def main():
     for seed in SEEDS:
         print(f"\n--- Seed {seed} ---")
         t0 = time.time()
-        print("  [dNaty CL]")
+        print("  [dNATY CL]")
         dr = run_dnaty_cl_seed(seed, device)
         dnaty_results.append(dr)
         print(f"  BWT={dr['metrics']['BWT']:.4f} | FWT={dr['metrics']['FWT']:.4f} | {time.time()-t0:.1f}s")
@@ -258,7 +258,7 @@ def main():
         print(f"  BWT={er['metrics']['BWT']:.4f} | {time.time()-t0:.1f}s")
 
         t0 = time.time()
-        print("  [MLP sem CL]")
+        print("  [MLP no CL]")
         mr = run_mlp_cl_seed(seed, device)
         mlp_results.append(mr)
         print(f"  BWT={mr['metrics']['BWT']:.4f} | {time.time()-t0:.1f}s")
@@ -270,10 +270,10 @@ def main():
     ewc_bwt   = [r["metrics"]["BWT"] for r in ewc_results]
     t_stat, p_val, cohen_d = paired_ttest(dnaty_bwt, ewc_bwt)
 
-    print(f"\n{'─'*50}")
-    print("RESULTADOS FINAIS — Split-MNIST CL v5")
-    for name, results in [("dNaty", dnaty_results), ("EWC", ewc_results), ("MLP", mlp_results)]:
-        print(f"  {name:8s} BWT={mean_m(results,'BWT'):.4f}±{std_m(results,'BWT'):.4f}")
+    print(f"\n{'-'*50}")
+    print("FINAL RESULTS -- Split-MNIST CL v5")
+    for name, results in [("dNATY", dnaty_results), ("EWC", ewc_results), ("MLP", mlp_results)]:
+        print(f"  {name:8s} BWT={mean_m(results,'BWT'):.4f}+/-{std_m(results,'BWT'):.4f}")
     print(f"  dNaty vs EWC: p={p_val:.4f} d={cohen_d:.3f}")
 
     all_results = {
@@ -291,7 +291,7 @@ def main():
     out_path = os.path.join(RESULTS_DIR, "exp3_cl_results.json")
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(all_results, f, indent=2, ensure_ascii=False)
-    print(f"\nSalvo em: {out_path}")
+    print(f"\nSaved to: {out_path}")
     return all_results
 
 

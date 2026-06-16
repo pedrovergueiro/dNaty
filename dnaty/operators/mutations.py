@@ -1,6 +1,6 @@
 """
-10 operadores estruturais do dNaty com garantias formais.
-Cada operador retorna (Individual, bool) — bool indica se mutação foi aplicada.
+10 structural mutation operators for dNATY with formal guarantees.
+Each operator returns (Individual, bool) -- bool indicates whether the mutation was applied.
 """
 from __future__ import annotations
 import torch
@@ -14,28 +14,27 @@ OPERATORS = [
     "add_neuron",
     "remove_neuron",
     "add_skip",
-    "add_residual",       # residual identidade (in == out, sem projeção)
+    "add_residual",       # identity residual (in == out, no projection)
     "change_activation",
     "split_layer",
     "merge_layers",
     "prune_connections",
     "duplicate_module",
-    "add_conv_block",     # adiciona camada bottleneck (metade do último hidden)
-    "depthwise_sep",      # bottleneck estreito (1/4) — decomposição MLP-DW
+    "add_conv_block",     # adds a bottleneck layer (half of last hidden)
+    "depthwise_sep",      # narrow bottleneck (1/4) -- MLP depthwise decomposition
 ]
 
 
 def _rebuild_from_sizes(ind: Individual, new_sizes: list[int], new_acts: list[str]) -> Individual:
-    """Reconstrói o indivíduo com novos tamanhos, copiando pesos onde possível."""
+    """Rebuild the individual with new layer sizes, copying weights where possible."""
     old_model = ind.model
-    # Detectar device do modelo original
     try:
         device = next(old_model.parameters()).device
     except StopIteration:
         device = torch.device("cpu")
 
     new_model = DynamicMLP(new_sizes, new_acts, old_model.n_classes)
-    # Copiar pesos das camadas que existem em ambos
+    # Copy weights for layers that exist in both old and new model
     old_layers = [(old_model.net[i], old_model.net[i + 2])
                   for i in range(0, len(old_model.net) - 1, 3)]
     new_layers = [(new_model.net[i], new_model.net[i + 2])
@@ -46,24 +45,23 @@ def _rebuild_from_sizes(ind: Individual, new_sizes: list[int], new_acts: list[st
         with torch.no_grad():
             new_lin.weight[:min_out, :min_in].copy_(old_lin.weight[:min_out, :min_in])
             new_lin.bias[:min_out].copy_(old_lin.bias[:min_out])
-    # Copiar última camada (classificador)
+    # Copy classifier head
     old_cls = old_model.net[-1]
     new_cls = new_model.net[-1]
     min_in = min(old_cls.in_features, new_cls.in_features)
     with torch.no_grad():
         new_cls.weight[:, :min_in].copy_(old_cls.weight[:, :min_in])
         new_cls.bias.copy_(old_cls.bias)
-    # Mover para o mesmo device do modelo original
     new_model = new_model.to(device)
     new_ind = Individual(new_model, deepcopy(ind.memory))
     return new_ind
 
 
 def add_neuron(ind: Individual, eps: float = 0.01) -> tuple[Individual, bool]:
-    """Op 1: insere neurônio numa camada oculta aleatória. ‖output_diff‖ < ε·‖x‖."""
+    """Op 1: insert a neuron in a random hidden layer. ||output_diff|| < eps * ||x||."""
     sizes = list(ind.model.layer_sizes)
     acts = list(ind.model.activations)
-    # Só modifica camadas ocultas (índices 1 até len-2, excluindo input e output)
+    # Only modifies hidden layers (indices 1 to len-2, excluding input and output)
     hidden_indices = list(range(1, len(sizes) - 1))
     if not hidden_indices:
         return ind, False
@@ -75,7 +73,7 @@ def add_neuron(ind: Individual, eps: float = 0.01) -> tuple[Individual, bool]:
 
 
 def remove_neuron(ind: Individual) -> tuple[Individual, bool]:
-    """Op 2: remove ~12.5% dos neuronios da camada escolhida."""
+    """Op 2: remove ~12.5% of neurons from the chosen layer."""
     sizes = list(ind.model.layer_sizes)
     acts = list(ind.model.activations)
     candidates = [i for i in range(1, len(sizes) - 1) if sizes[i] > 4]
@@ -90,17 +88,17 @@ def remove_neuron(ind: Individual) -> tuple[Individual, bool]:
 
 
 def add_residual(ind: Individual) -> tuple[Individual, bool]:
-    """Residual identidade entre camadas de mesmo tamanho — sem projeção.
+    """Identity residual between layers of the same size -- no projection.
 
-    Diferente de add_skip (que projeta dimensões diferentes), este operador
-    só conecta camadas com in_features == out_features: out = layer(x) + x.
-    Implementação ResNet pura, ~zero FLOPs extras.
+    Unlike add_skip (which projects different dimensions), this operator
+    only connects layers where in_features == out_features: out = layer(x) + x.
+    Pure ResNet implementation, ~zero extra FLOPs.
     """
     sizes = ind.model.layer_sizes
     if len(sizes) < 3:
         return ind, False
-    # Encontra pares (src, dst) consecutivos com mesmo tamanho
-    # sizes[k] == sizes[k+1] → out do bloco k-1 == out do bloco k → residual sem proj
+    # Find consecutive pairs (src, dst) with the same size
+    # sizes[k] == sizes[k+1] -> out of block k-1 == out of block k -> identity residual
     candidates = [
         (k, k + 1)
         for k in range(len(sizes) - 1)
@@ -115,13 +113,13 @@ def add_residual(ind: Individual) -> tuple[Individual, bool]:
     src, dst = candidates[np.random.randint(len(candidates))]
     new_ind = ind.clone()
     # proj=None sinaliza residual identidade puro no forward
-    new_ind.model.skip_connections.append((src, dst, None))
+    new_ind.model.skip_connections.append((src, dst, None))  # proj=None signals pure identity residual in forward
     new_ind.last_op = "add_residual"
     return new_ind, True
 
 
 def add_skip(ind: Individual) -> tuple[Individual, bool]:
-    """Op 3: adiciona skip connection com projeção se necessário."""
+    """Op 3: add a skip connection with projection if dimensions differ."""
     sizes = ind.model.layer_sizes
     if len(sizes) < 3:
         return ind, False
@@ -144,7 +142,7 @@ def add_skip(ind: Individual) -> tuple[Individual, bool]:
 
 
 def change_activation(ind: Individual) -> tuple[Individual, bool]:
-    """Op 4: altera ativação de uma camada aleatória."""
+    """Op 4: change the activation function of a random layer."""
     acts = list(ind.model.activations)
     if not acts:
         return ind, False
@@ -158,7 +156,7 @@ def change_activation(ind: Individual) -> tuple[Individual, bool]:
 
 
 def split_layer(ind: Individual) -> tuple[Individual, bool]:
-    """Op 5: divide camada oculta em duas com inicialização ortogonal."""
+    """Op 5: split a hidden layer into two with orthogonal initialisation."""
     sizes = list(ind.model.layer_sizes)
     acts = list(ind.model.activations)
     hidden_indices = list(range(1, len(sizes) - 1))
@@ -168,7 +166,7 @@ def split_layer(ind: Individual) -> tuple[Individual, bool]:
     half = max(4, sizes[layer_idx] // 2)
     new_sizes = sizes[:layer_idx + 1] + [half] + sizes[layer_idx + 1:]
     new_acts = acts[:layer_idx - 1] + [acts[layer_idx - 1], acts[layer_idx - 1]] + acts[layer_idx:]
-    # Garantir que acts tem o tamanho certo
+    # Ensure acts has the correct length
     n_hidden = len(new_sizes) - 2
     while len(new_acts) < n_hidden:
         new_acts.append("relu")
@@ -179,10 +177,10 @@ def split_layer(ind: Individual) -> tuple[Individual, bool]:
 
 
 def merge_layers(ind: Individual) -> tuple[Individual, bool]:
-    """Op 6: funde duas camadas ocultas consecutivas via concatenação."""
+    """Op 6: merge two consecutive hidden layers via concatenation."""
     sizes = list(ind.model.layer_sizes)
     acts = list(ind.model.activations)
-    # Precisa de pelo menos 2 camadas ocultas para fundir
+    # Needs at least 2 hidden layers to merge
     if len(sizes) < 4:
         return ind, False
     hidden_indices = list(range(1, len(sizes) - 2))
@@ -199,7 +197,7 @@ def merge_layers(ind: Individual) -> tuple[Individual, bool]:
 
 
 def prune_connections(ind: Individual, sparsity_max: float = 0.5) -> tuple[Individual, bool]:
-    """Op 7: zera conexões com |w| < τ adaptativo."""
+    """Op 7: zero connections with |w| < adaptive threshold tau."""
     new_ind = ind.clone()
     pruned_any = False
     for module in new_ind.model.modules():
@@ -208,7 +206,7 @@ def prune_connections(ind: Individual, sparsity_max: float = 0.5) -> tuple[Indiv
                 w = module.weight.data
                 tau = w.abs().mean() * 0.5
                 mask = w.abs() >= tau
-                # Garantir sparsidade máxima
+                # Enforce maximum sparsity cap
                 if mask.float().mean() < (1 - sparsity_max):
                     continue
                 module.weight.data = w * mask.float()
@@ -218,7 +216,7 @@ def prune_connections(ind: Individual, sparsity_max: float = 0.5) -> tuple[Indiv
 
 
 def duplicate_module(ind: Individual, noise_eps: float = 0.01) -> tuple[Individual, bool]:
-    """Op 8: duplica uma camada oculta com perturbação ε."""
+    """Op 8: duplicate a hidden layer with noise perturbation eps."""
     sizes = list(ind.model.layer_sizes)
     acts = list(ind.model.activations)
     hidden_indices = list(range(1, len(sizes) - 1))
@@ -229,8 +227,8 @@ def duplicate_module(ind: Individual, noise_eps: float = 0.01) -> tuple[Individu
     n_hidden = len(new_sizes) - 2
     new_acts = (acts + ["relu"] * 10)[:n_hidden]
     new_ind = _rebuild_from_sizes(ind, new_sizes, new_acts)
-    # Encontra a primeira camada Linear no índice correto (passo 3: Linear+BN+Act)
-    net_idx = (layer_idx - 1) * 3  # cada bloco tem 3 módulos agora
+    # Find the Linear layer at the right index (stride 3: Linear+BN+Act per block)
+    net_idx = (layer_idx - 1) * 3  # each block has 3 modules: Linear + BN + Act
     if 0 <= net_idx < len(new_ind.model.net) - 1:
         module = new_ind.model.net[net_idx]
         if isinstance(module, torch.nn.Linear):
@@ -241,7 +239,7 @@ def duplicate_module(ind: Individual, noise_eps: float = 0.01) -> tuple[Individu
 
 
 def add_conv_block(ind: Individual) -> tuple[Individual, bool]:
-    """Op 9: insere camada compacta (metade do ultimo hidden) — gargalo que reduz FLOPs."""
+    """Op 9: insert a compact layer (half of last hidden) -- bottleneck that reduces FLOPs."""
     sizes = list(ind.model.layer_sizes)
     acts = list(ind.model.activations)
     insert_size = max(16, sizes[-1] // 2)
@@ -253,22 +251,21 @@ def add_conv_block(ind: Individual) -> tuple[Individual, bool]:
 
 
 def depthwise_sep(ind: Individual) -> tuple[Individual, bool]:
-    """Decomposição bottleneck MLP — análogo a conv depthwise+pointwise para MLPs.
+    """MLP bottleneck decomposition -- analogous to depthwise+pointwise conv for MLPs.
 
-    Substitui a última camada oculta L→L por dois estágios:
-      L → bottleneck (L//4, canal estreito) → L
-    Economiza FLOPs ~75% nessa camada vs Linear(L, L) direto, mantendo
-    a capacidade representacional com o estágio de expansão.
+    Replaces the last hidden layer L->L with two stages:
+      L -> bottleneck (L//4, narrow channel) -> L
+    Saves ~75% FLOPs in that layer vs a direct Linear(L, L),
+    while preserving representational capacity via the expansion stage.
     """
     sizes = list(ind.model.layer_sizes)
     acts = list(ind.model.activations)
     if len(sizes) < 2:
         return ind, False
-    # Insere bottleneck antes da última camada oculta
-    last_hidden_idx = len(sizes) - 1   # índice em sizes do último hidden
+    last_hidden_idx = len(sizes) - 1
     last_hidden = sizes[last_hidden_idx]
     bottleneck = max(8, last_hidden // 4)
-    # Adiciona o estágio estreito: ..., last_hidden → bottleneck → last_hidden
+    # Insert narrow stage: ..., last_hidden -> bottleneck -> last_hidden
     new_sizes = sizes[:last_hidden_idx] + [bottleneck] + sizes[last_hidden_idx:]
     n_hidden = len(new_sizes) - 2
     new_acts = (acts + ["relu"] * 10)[:n_hidden]

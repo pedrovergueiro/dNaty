@@ -1,5 +1,5 @@
-"""
-CompressResult — return type for all dNATY compression functions.
+﻿"""
+CompressResult -- return type for all dNATY compression functions.
 
 Carries the compressed model plus all compression metrics.
 Use save() / dnaty.load() to persist and reload across sessions.
@@ -81,7 +81,7 @@ class CompressResult:
         """Measure real inference latency (p50/p95/p99 in milliseconds).
 
         Designed for edge deployment validation (Raspberry Pi, drones, cameras).
-        Uses CPU by default — matches target hardware that has no GPU.
+        Uses CPU by default -- matches target hardware that has no GPU.
 
         Args:
             input_shape: Shape of a single sample, e.g. (784,) or (3, 32, 32).
@@ -161,7 +161,7 @@ class CompressResult:
             # stable TorchScript exporter.
             torch.onnx.export(self.model, dummy, path, dynamo=False, **kwargs)
         except TypeError:
-            # torch < 2.5 has no `dynamo` kwarg — TorchScript is already the default.
+            # torch < 2.5 has no `dynamo` kwarg -- TorchScript is already the default.
             torch.onnx.export(self.model, dummy, path, **kwargs)
 
 

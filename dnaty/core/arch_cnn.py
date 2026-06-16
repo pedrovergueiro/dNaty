@@ -1,6 +1,6 @@
 """
-DynamicCNN — arquitetura CNN mutável para CIFAR-10.
-Suporta blocos Conv2D+BN+ReLU e depthwise separable.
+DynamicCNN -- mutable CNN architecture for CIFAR-10.
+Supports Conv2D+BN+ReLU blocks and depthwise separable blocks.
 """
 from __future__ import annotations
 import torch
@@ -10,7 +10,7 @@ from copy import deepcopy
 
 
 class ConvBlock(nn.Module):
-    """Conv2D + BatchNorm + ReLU — bloco padrão."""
+    """Conv2D + BatchNorm + ReLU -- standard block."""
     def __init__(self, in_ch: int, out_ch: int, kernel: int = 3, stride: int = 1):
         super().__init__()
         pad = kernel // 2
@@ -28,7 +28,7 @@ class ConvBlock(nn.Module):
 
 
 class DepthwiseSepBlock(nn.Module):
-    """Depthwise Separable Conv — MobileNet style. k² vezes menos FLOPs."""
+    """Depthwise Separable Conv -- MobileNet style. k^2 times fewer FLOPs."""
     def __init__(self, in_ch: int, out_ch: int, stride: int = 1):
         super().__init__()
         self.block = nn.Sequential(
@@ -51,8 +51,8 @@ class DepthwiseSepBlock(nn.Module):
 
 class DynamicCNN(nn.Module):
     """
-    CNN com arquitetura mutável para CIFAR-10 (32×32×3).
-    Estrutura: [ConvBlocks] → GlobalAvgPool → [FC layers] → classifier
+    CNN with mutable architecture for CIFAR-10 (32x32x3).
+    Structure: [ConvBlocks] -> GlobalAvgPool -> [FC layers] -> classifier
     """
 
     def __init__(
@@ -66,7 +66,7 @@ class DynamicCNN(nn.Module):
         self.n_classes = n_classes
         self.in_channels = in_channels
 
-        # Config padrão: 3 blocos conv progressivos
+        # Default config: 3 progressively-wider conv blocks
         if conv_configs is None:
             conv_configs = [
                 {"type": "conv", "in_ch": 3,  "out_ch": 32, "stride": 1},
@@ -81,7 +81,6 @@ class DynamicCNN(nn.Module):
         self._build()
 
     def _build(self) -> None:
-        # Blocos convolucionais
         conv_layers = []
         for cfg in self.conv_configs:
             if cfg["type"] == "depthwise":
@@ -89,9 +88,9 @@ class DynamicCNN(nn.Module):
             else:
                 conv_layers.append(ConvBlock(cfg["in_ch"], cfg["out_ch"], cfg.get("kernel", 3), cfg.get("stride", 1)))
         self.conv_layers = nn.ModuleList(conv_layers)
-        self.pool = nn.AdaptiveAvgPool2d(1)  # → (B, C, 1, 1)
+        self.pool = nn.AdaptiveAvgPool2d(1)  # -> (B, C, 1, 1)
 
-        # Camadas FC
+        # FC layers
         last_ch = self.conv_configs[-1]["out_ch"] if self.conv_configs else self.in_channels
         fc_layers = []
         prev = last_ch
