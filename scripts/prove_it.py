@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-dNATY prove_it.py -- prova todos os claims com numeros reais.
+dNATY prove_it.py -- verifies all claims with real measurements.
 
-Mede:
+Measures:
   1. NAS: dNATY vs RandomNAS  -- 50 gens, pop=20, MNIST 30K
-     - curvas de convergencia gen-a-gen
-     - reducao de FLOPs 20%+ (Pareto-eff)
-     - speedup: geracoes para atingir accuracy alvo
+     - generation-by-generation convergence curves
+     - FLOPs reduction 20%+ (Pareto-efficient)
+     - convergence: generations to reach accuracy target
   2. CL: Split-MNIST 5 tasks
-     - BWT com replay melhorado (target < -0.10)
+     - BWT with improved replay (target < -0.10)
 
-Uso:
+Usage:
   python scripts/prove_it.py           # ~25 min CPU (50 gens, 30K)
   python scripts/prove_it.py --quick   # ~10 min CPU (30 gens, 15K)
 """
@@ -32,7 +32,7 @@ from dnaty.operators.mutations import OPERATORS, apply_operator
 parser = argparse.ArgumentParser()
 parser.add_argument("--quick", action="store_true", help="30 gens, 15K (~10 min)")
 parser.add_argument("--dataset", default="MNIST", choices=["MNIST", "FashionMNIST"],
-                    help="dataset (MNIST default; FashionMNIST p/ provar generalizacao)")
+                    help="dataset (MNIST default; FashionMNIST to verify generalisation)")
 args = parser.parse_args()
 
 DATASET  = args.dataset
@@ -44,7 +44,7 @@ BATCH    = 512
 SEED     = 42
 DEVICE   = "cuda" if torch.cuda.is_available() else "cpu"
 
-# Arquitetura inicial GRANDE -- da espaco real para NSGA-II comprimir
+# Large initial architecture -- gives NSGA-II real room to compress
 INIT_HIDDEN = [512, 256, 128]
 
 W = 64
@@ -82,7 +82,7 @@ def run_nas_proof(ds) -> dict:
     init_ind   = DnatyEvolver(input_size=784, n_classes=10,
                                init_hidden=INIT_HIDDEN, device=DEVICE)._make_individual()
     init_flops = init_ind.count_flops()
-    info(f"Arquitetura inicial: MLP{[784]+INIT_HIDDEN}->10   FLOPs={init_flops:,}")
+    info(f"Initial architecture: MLP{[784]+INIT_HIDDEN}->10   FLOPs={init_flops:,}")
 
     results = {}
     for label, cls in [("dNATY", DnatyEvolver), ("RandomNAS", RandomSearchNAS)]:
@@ -165,7 +165,7 @@ def run_nas_proof(ds) -> dict:
     if d["reduction_pct"] >= 20:
         ok(f"FLOPs: {init_flops:,} -> {d['flops_eff']:,}  (-{d['reduction_pct']:.1f}%)  arch={d['arch_eff']}")
     else:
-        fail(f"FLOPs reducao insuficiente: -{d['reduction_pct']:.1f}%  (target: 20%+)  arch={d['arch_eff']}")
+        fail(f"Insufficient FLOPs reduction: -{d['reduction_pct']:.1f}%  (target: 20%+)  arch={d['arch_eff']}")
 
     if speedup is not None:
         if speedup >= 1.5:
@@ -173,7 +173,7 @@ def run_nas_proof(ds) -> dict:
         else:
             info(f"Speedup: {speedup:.1f}x  (dNATY gen {d['gens_to_target']} vs RandomNAS gen {r['gens_to_target']})")
     else:
-        info(f"Target acc {target_acc} nao atingido em {N_GEN} gens")
+        info(f"Target acc {target_acc} not reached in {N_GEN} gens")
 
     return {"init_flops": init_flops, "target_acc": target_acc,
             "speedup": round(speedup, 2) if speedup else None,
@@ -206,7 +206,7 @@ def run_cl_proof() -> dict:
         print(f"    BWT={er['metrics']['BWT']:.4f}  {time.time()-t0:.0f}s")
 
         t0 = time.time()
-        info("MLP sem CL ...")
+        info("MLP no CL ...")
         mr = run_mlp_cl_seed(seed, DEVICE)
         mlp_res.append(mr)
         print(f"    BWT={mr['metrics']['BWT']:.4f}  {time.time()-t0:.0f}s")
@@ -222,14 +222,14 @@ def run_cl_proof() -> dict:
     if d_bwt > -0.10:
         ok(f"dNATY BWT={d_bwt:.4f}  (target > -0.10) [OK]")
     else:
-        info(f"dNATY BWT={d_bwt:.4f}  (abaixo de -0.10, mas {ratio:.1f}x melhor que EWC)")
-    info(f"EWC     BWT={e_bwt:.4f}")
+        info(f"dNATY BWT={d_bwt:.4f}  (below -0.10, but {ratio:.1f}x better than EWC)")
+    info(f"EWC      BWT={e_bwt:.4f}")
     info(f"MLP noCL BWT={m_bwt:.4f}")
 
     if ratio >= 5:
-        ok(f"dNATY esquece {ratio:.1f}x menos que EWC")
+        ok(f"dNATY forgets {ratio:.1f}x less than EWC")
     else:
-        info(f"dNATY vs EWC: {ratio:.1f}x menos esquecimento")
+        info(f"dNATY vs EWC: {ratio:.1f}x less forgetting")
 
     return {
         "dnaty_bwt": round(d_bwt, 4),
@@ -241,7 +241,7 @@ def run_cl_proof() -> dict:
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 def print_summary(nas: dict, cl: dict | None) -> None:
-    banner("PROVA FINAL -- dNATY v1.0")
+    banner("FINAL PROOF -- dNATY v1.1.7")
 
     d = nas["dNATY"]
     r = nas["RandomNAS"]
@@ -250,7 +250,7 @@ def print_summary(nas: dict, cl: dict | None) -> None:
 
     print(f"\n  [NAS -- {N_GEN} gens, pop={N_POP}, {DATASET} {SUBSET//1000}K]")
     m = "[OK]" if delta > 0 else "[--]"
-    print(f"  {m} Acuracia:  {d['acc']:.4f} (dNATY)  vs  {r['acc']:.4f} (Random)  ({delta:+.4f} pp)")
+    print(f"  {m} Accuracy:  {d['acc']:.4f} (dNATY)  vs  {r['acc']:.4f} (Random)  ({delta:+.4f} pp)")
     m = "[OK]" if d["reduction_pct"] >= 20 else "[--]"
     print(f"  {m} FLOPs:     {nas['init_flops']:,} -> {d['flops_eff']:,}  (-{d['reduction_pct']:.1f}%)  arch={d['arch_eff']}")
     if speedup:
@@ -262,7 +262,7 @@ def print_summary(nas: dict, cl: dict | None) -> None:
     if cl is not None:
         print(f"\n  [CL -- Split-MNIST 5 tasks, 3 seeds]")
         m = "[OK]" if cl["ratio"] >= 5 else "[--]"
-        print(f"  {m} BWT:       {cl['dnaty_bwt']:.4f} (dNATY)  vs  {cl['ewc_bwt']:.4f} (EWC)  ->  {cl['ratio']:.0f}x melhor")
+        print(f"  {m} BWT:       {cl['dnaty_bwt']:.4f} (dNATY)  vs  {cl['ewc_bwt']:.4f} (EWC)  ->  {cl['ratio']:.0f}x less forgetting")
 
     nas_pass = delta > 0 and d["reduction_pct"] >= 20 and (speedup is None or speedup >= 1.5)
     cl_pass  = (cl is None) or cl["ratio"] >= 5
@@ -270,14 +270,14 @@ def print_summary(nas: dict, cl: dict | None) -> None:
 
     print(f"\n{'='*W}")
     if all_pass:
-        print("  TODOS OS CLAIMS VERIFICADOS [OK]")
+        print("  ALL CLAIMS VERIFIED [OK]")
     else:
         issues = []
         if delta <= 0:              issues.append("acc dNATY <= RandomNAS")
         if d["reduction_pct"] < 20: issues.append(f"FLOPs -{d['reduction_pct']:.1f}% < 20%")
         if speedup and speedup < 1.5: issues.append(f"speedup {speedup:.1f}x < 1.5x")
         if cl is not None and cl["ratio"] < 5: issues.append(f"CL ratio {cl['ratio']:.1f}x < 5x")
-        print(f"  Pendente: {' | '.join(issues)}")
+        print(f"  Pending: {' | '.join(issues)}")
     print(f"{'='*W}\n")
 
 
@@ -290,7 +290,7 @@ def main():
 
     t_total = time.time()
 
-    print(f"\n[Carregando {DATASET} ...]", flush=True)
+    print(f"\n[Loading {DATASET} ...]", flush=True)
     ds = FastDataset(DATASET, device=DEVICE, train_subset=SUBSET)
 
     nas_out = run_nas_proof(ds)
@@ -311,7 +311,7 @@ def main():
             nas_out["RandomNAS"]["acc_curve"]
         ), 1):
             w.writerow([g, da, ra])
-    info(f"Curvas de convergencia: {csv_path}")
+    info(f"Convergence curves: {csv_path}")
 
     # Save full JSON
     output = {
@@ -323,7 +323,7 @@ def main():
     }
     json_path = out_dir / "prove_it_results.json"
     json_path.write_text(json.dumps(output, indent=2), encoding="utf-8")
-    info(f"Resultados: {json_path}  ({time.time()-t_total:.0f}s total)")
+    info(f"Results: {json_path}  ({time.time()-t_total:.0f}s total)")
 
 
 if __name__ == "__main__":

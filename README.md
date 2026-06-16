@@ -49,17 +49,17 @@ ds = FastDataset("MNIST", device="cpu", train_subset=10_000)
 result = compress(model, ds, target_flops=0.5, n_generations=30)
 
 print(result.summary())
-# CompressResult | arch=[301, 153, 128] | FLOPs -46.5% (1,133,056 -> 605,802)
-#   | params -46.5% (536K -> 286K) | acc=0.9859
+# CompressResult | arch=[...] | FLOPs -44% (1,133,056 -> ~633K) | acc=0.977
+# (exact numbers vary by seed/subset; run scripts/prove_it.py to reproduce)
 ```
 
 The compressed model is a regular `nn.Module` — drop it into your existing pipeline:
 
 ```python
 result.model                  # nn.Module, ready for inference
-result.accuracy               # 0.9859
-result.flops_reduction_pct    # 46.5
-result.arch                   # [301, 153, 128]  ← hidden layer sizes found
+result.accuracy               # 0.977  (example; varies by seed/subset)
+result.flops_reduction_pct    # 44.1   (example)
+result.arch                   # [301, 226, 32, 128]  ← hidden layer sizes found
 
 # Save / reload
 result.save("compressed.pt")
@@ -80,7 +80,7 @@ print(result.benchmark_latency((784,)))   # p50/p95/p99 ms + fps
 
 **What you get with dNATY:**
 
-- **Smaller, cheaper models** — 23–86% fewer FLOPs across 18 benchmark datasets, accuracy kept
+- **Smaller, cheaper models** — 18–86% fewer FLOPs across 18 benchmark datasets, accuracy kept
 - **No GPU** — the search runs on CPU in minutes, so it works in CI and on the hardware you already have
 - **No manual architecture design** — point it at a model + dataset, get a deployable `nn.Module` back
 - **One function call** — `compress(model, dataset)`; export to `.pt` / `.onnx`
