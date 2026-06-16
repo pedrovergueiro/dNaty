@@ -182,7 +182,7 @@ def run_nas_proof(ds) -> dict:
 
 # ── Fase 2: CL proof ──────────────────────────────────────────────────────────
 def run_cl_proof() -> dict:
-    section("CL Proof: Split-MNIST | replay=500/task | balanced sampling | 20 epochs")
+    section("CL Proof: Split-MNIST | replay=200/task | balanced sampling | 15 epochs")
     from dnaty.experiments.exp3_cl import (
         run_dnaty_cl_seed, run_ewc_cl_seed, run_mlp_cl_seed, N_TASKS,
     )

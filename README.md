@@ -30,6 +30,7 @@ pip install dnaty
 
 ```python
 import torch.nn as nn
+import dnaty
 from dnaty import compress
 from dnaty.experiments.fast_dataset import FastDataset
 
@@ -48,8 +49,8 @@ ds = FastDataset("MNIST", device="cpu", train_subset=10_000)
 result = compress(model, ds, target_flops=0.5, n_generations=30)
 
 print(result.summary())
-# CompressResult | arch=[301, 153, 128] | FLOPs -46.5% (1,133,056 → 605,802)
-#   | params -46.5% (536K → 286K) | acc=0.9859
+# CompressResult | arch=[301, 153, 128] | FLOPs -46.5% (1,133,056 -> 605,802)
+#   | params -46.5% (536K -> 286K) | acc=0.9859
 ```
 
 The compressed model is a regular `nn.Module` — drop it into your existing pipeline:
@@ -99,7 +100,7 @@ Runtimes optimize *execution* of a fixed architecture. dNATY optimizes *the arch
 | **Random NAS** | Random architecture sampling | No memory — re-tries bad ideas |
 | **dNATY** | Evolves a smaller architecture, memory-guided | CPU-only, one call |
 
-The engine is **episodic memory-guided evolutionary search**: operators that helped in past generations get sampled more often, so it converges **1.6× faster than random NAS** — no gradients, no GPU.
+The engine is **episodic memory-guided evolutionary search**: operators that helped in past generations get sampled more often, so it consistently finds better compression than random NAS at the same generation budget — no gradients, no GPU.
 
 ---
 
@@ -136,8 +137,8 @@ Compression scales with how oversized the model is — dNATY finds the right siz
 
 | Method | Backward Transfer (BWT) | |
 |---|---|---|
-| **dNATY (balanced replay)** | **−0.145** | **6.9× less forgetting** |
-| EWC | −0.999 | near-total forgetting |
+| **dNATY (balanced replay)** | **−0.204** | **~5× less forgetting** |
+| EWC | −0.998 | near-total forgetting |
 | MLP (no CL) | −0.998 | baseline |
 
 <img src="https://raw.githubusercontent.com/pedrovergueiro/dNaty/main/results/cpu_latency/cpu_latency_comparison.png" alt="CPU latency comparison" width="640" />
