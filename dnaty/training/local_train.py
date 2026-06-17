@@ -43,7 +43,7 @@ def local_train(
     # Structural cost: computed ONCE per individual
     n_params = ind.count_params()
     n_flops  = ind.count_flops()
-    cost_val = lambda1 * n_params * 1e-5 + lambda1 * 0.01 * n_flops * 1e-5
+    cost_val = lambda1 * n_params * 1e-5 + lambda2 * 0.01 * n_flops * 1e-5
     cost_penalty = torch.tensor(cost_val, dtype=torch.float32, device=device)
 
     # LR schedule: cosine annealing -- high at start, low at end
@@ -111,9 +111,8 @@ def local_train(
             scaler.unscale_(optimizer)
             with torch.no_grad():
                 gn_sq = sum(
-                    p.grad.norm().pow(2)
-                    for p in model.parameters()
-                    if p.grad is not None
+                    (p.grad.norm().pow(2) for p in model.parameters() if p.grad is not None),
+                    torch.tensor(0.0, device=device),
                 )
                 total_grad_sq += gn_sq.item()
 
@@ -195,10 +194,12 @@ def micro_adapt(
     is_fast = hasattr(loader, 'get_train_batch')
     if is_fast:
         x, y = loader.get_train_batch(256)
+        x, y = x.to(device), y.to(device)
     else:
         x, y = next(iter(loader))
         x, y = x.to(device), y.to(device)
 
+    model.zero_grad()
     criterion(model(x), y).backward()
     with torch.no_grad():
         all_grads = torch.cat([

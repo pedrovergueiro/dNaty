@@ -164,6 +164,11 @@ def add_fc_neuron(ind: Individual) -> tuple[Individual, bool]:
 
     for old_l, new_l in zip(model.conv_layers, new_model.conv_layers):
         new_l.load_state_dict(old_l.state_dict())
+    for old_l, new_l in zip(model.fc, new_model.fc):
+        try:
+            new_l.load_state_dict(old_l.state_dict())
+        except Exception:
+            pass  # shape changed (last fc layer) — keep random init
 
     new_ind = Individual(new_model, deepcopy(ind.memory))
     new_ind.last_op = "add_fc_neuron"
@@ -187,6 +192,11 @@ def remove_fc_neuron(ind: Individual) -> tuple[Individual, bool]:
 
     for old_l, new_l in zip(model.conv_layers, new_model.conv_layers):
         new_l.load_state_dict(old_l.state_dict())
+    for old_l, new_l in zip(model.fc, new_model.fc):
+        try:
+            new_l.load_state_dict(old_l.state_dict())
+        except Exception:
+            pass  # shape changed (last fc layer) — keep random init
 
     new_ind = Individual(new_model, deepcopy(ind.memory))
     new_ind.last_op = "remove_fc_neuron"
@@ -214,6 +224,15 @@ def change_stride(ind: Individual) -> tuple[Individual, bool]:
 
     new_model = DynamicCNN(new_configs, list(model.fc_sizes), model.n_classes, model.in_channels)
     new_model = new_model.to(device)
+
+    # Stride doesn't change weight shapes, so all weights are transferable
+    for old_l, new_l in zip(model.conv_layers, new_model.conv_layers):
+        try:
+            new_l.load_state_dict(old_l.state_dict())
+        except Exception:
+            pass
+    new_model.fc.load_state_dict(model.fc.state_dict())
+    new_model.classifier.load_state_dict(model.classifier.state_dict())
 
     new_ind = Individual(new_model, deepcopy(ind.memory))
     new_ind.last_op = "change_stride"
