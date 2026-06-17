@@ -474,13 +474,13 @@ def compress_with_backbone(
                 yb = yb.to(device) if isinstance(yb, torch.Tensor) else torch.tensor(yb, device=device)
                 optimizer.zero_grad()
                 out = full_model(xb)
-                nn.CrossEntropyLoss()(out, yb).backward()
+                criterion(out, yb).backward()
                 optimizer.step()
                 ep_correct += (out.argmax(1) == yb).sum().item()
                 ep_total += len(yb)
-            if verbose:
+            if verbose and ep_total > 0:
                 print(f"  Finetune epoch {ep+1}/{finetune_epochs} acc={ep_correct/ep_total:.4f}")
-        result.accuracy = ep_correct / ep_total
+        result.accuracy = ep_correct / max(ep_total, 1)
 
     result.model = full_model
     return result

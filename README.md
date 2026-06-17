@@ -183,8 +183,7 @@ result.export_onnx("mobilenet_edge.onnx", input_shape=(3, 224, 224))
 
 ### Deterministic results
 
-```python
-result = compress(model, ds, target_flops=0.5, n_generations=30, seed=42)
+```pythonO problema é que ficou genérico demais ("aprendi X, aprendi Y") ou faltou profundidade técnica, ou os dois? Quer que eu escreva mais como uma história contada por você, ou mais direto ao ponto com mais detalhes técnicos?_generations=30, seed=42)
 # Same seed → identical result. The pytest suite gates every release on this.
 ```
 

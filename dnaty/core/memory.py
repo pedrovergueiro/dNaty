@@ -70,6 +70,8 @@ class EpisodicMemory:
 
     def query_mutation_probs(self, operators: list[str], tau: float = 1.0) -> dict[str, float]:
         """Softmax over accumulated scores -- O(|ops|)."""
+        if not operators:
+            return {}
         vals = np.array(
             [self._scores.get(op, 0.0) for op in operators], dtype=np.float64
         ) / max(tau, 1e-8)

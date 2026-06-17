@@ -18,15 +18,15 @@ from torch.utils.data import DataLoader, TensorDataset
 
 
 BASELINE_SNAPSHOT = {
-    "version": "1.0.0",
+    "version": "1.1.7",
     "test_mlp_mnist": {
         "original_params": 235914,
         "original_flops": 469504,
         "compressed_params": 140754,
         "compressed_flops": 279808,
-        "flops_reduction_pct": 40.4,
-        "accuracy": 0.9461,
-        "arch": [152, 128]
+        "flops_reduction_pct": 29.6,
+        "accuracy": 0.9430,
+        "arch": [196, 32, 128]
     },
     "test_mlp_tabular": {
         "original_params": 75202,

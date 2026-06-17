@@ -9,10 +9,12 @@ Key optimizations:
   5. model.to(device) is idempotent
 """
 from __future__ import annotations
+import logging
 import numpy as np
 import torch
 from tqdm import tqdm
-import os
+
+logger = logging.getLogger(__name__)
 
 from dnaty.core.individual import Individual
 from dnaty.core.arch import DynamicMLP
@@ -240,7 +242,7 @@ class DnatyEvolver:
                 try:
                     progress_callback(log)
                 except Exception:
-                    pass
+                    logger.warning("progress_callback raised an exception", exc_info=True)
 
             # -- Early stopping --------------------------------------------
             if best_ind.acc > best_acc_ever + early_stop_min_delta:

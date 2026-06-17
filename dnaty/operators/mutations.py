@@ -228,7 +228,7 @@ def duplicate_module(ind: Individual, noise_eps: float = 0.01) -> tuple[Individu
     new_acts = (acts + ["relu"] * 10)[:n_hidden]
     new_ind = _rebuild_from_sizes(ind, new_sizes, new_acts)
     # Find the Linear layer at the right index (stride 3: Linear+BN+Act per block)
-    net_idx = (layer_idx - 1) * 3  # each block has 3 modules: Linear + BN + Act
+    net_idx = layer_idx * 3  # each block has 3 modules: Linear + BN + Act; duplicated block is at layer_idx
     if 0 <= net_idx < len(new_ind.model.net) - 1:
         module = new_ind.model.net[net_idx]
         if isinstance(module, torch.nn.Linear):
