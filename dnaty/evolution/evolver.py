@@ -264,7 +264,17 @@ class CnnEvolver(DnatyEvolver):
     Evolver for DynamicCNN -- uses real CNN operators (Conv2D, DepthwiseSep, etc.).
     Same evolution logic as DnatyEvolver, but _make_individual and _mutate_population
     operate on DynamicCNN instead of DynamicMLP.
+
+    Budget-aware operator selection: when the current best individual's FLOPs exceed
+    target_flops * baseline_flops, the probability of swap_conv_to_dw and prune_channels
+    is boosted by budget_boost_factor so the search prioritises compression.
     """
+
+    def __init__(self, *args, target_flops: float = 0.5, budget_boost_factor: float = 3.0, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.target_flops = target_flops
+        self.budget_boost_factor = budget_boost_factor
+        self._baseline_flops: float | None = None  # set at run() start
 
     def _make_individual(self) -> Individual:
         from dnaty.core.arch_cnn import DynamicCNN
@@ -275,6 +285,21 @@ class CnnEvolver(DnatyEvolver):
     def _mutate_population(self, population: list[Individual]) -> list[Individual]:
         from dnaty.operators.mutations_cnn import CNN_OPERATORS, apply_cnn_operator
         op_probs = self.shared_memory.query_mutation_probs(CNN_OPERATORS, tau=self.memory_tau)
+
+        # Budget-aware boost: if best individual is still over-budget, triple the
+        # probability of compression operators so the search finds cuts faster.
+        if self._baseline_flops is not None and population:
+            best_flops = max(ind.count_flops() for ind in population)
+            budget = self.target_flops * self._baseline_flops
+            if best_flops > budget:
+                boost_ops = {"swap_conv_to_dw", "prune_channels"}
+                raw = {
+                    op: (v * self.budget_boost_factor if op in boost_ops else v)
+                    for op, v in op_probs.items()
+                }
+                total = sum(raw.values())
+                op_probs = {op: v / total for op, v in raw.items()}
+
         ops   = list(op_probs.keys())
         probs = list(op_probs.values())
         mutated = []
@@ -286,3 +311,9 @@ class CnnEvolver(DnatyEvolver):
                 new_ind.last_op = "no_op"
             mutated.append(new_ind)
         return mutated
+
+    def _init_population(self, seed=None):
+        super()._init_population(seed=seed)
+        # Capture baseline FLOPs right after initial population is built so budget
+        # checks in _mutate_population have a stable reference throughout evolution.
+        self._baseline_flops = float(np.mean([ind.count_flops() for ind in self.population]))

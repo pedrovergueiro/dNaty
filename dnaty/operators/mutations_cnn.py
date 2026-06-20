@@ -96,11 +96,12 @@ def depthwise_sep(ind: Individual) -> tuple[Individual, bool]:
 
 
 def swap_conv_to_dw(ind: Individual) -> tuple[Individual, bool]:
-    """Layer swap: replace a standard Conv2D block with DepthwiseSeparable.
+    """Layer swap: replace the highest-FLOPs Conv2D block with DepthwiseSeparable.
 
     Reduces FLOPs ~8-9x in the swapped layer (k^2*Cin*Cout -> k^2*Cin + Cin*Cout).
-    Only candidates with stride=1 and Cin >= 16 to preserve quality.
-    Computational cost verified via hook-based FLOPs counter.
+    Selects the candidate with the largest in_ch*out_ch product (dominant FLOPs proxy)
+    so the swap delivers the biggest efficiency gain per call.
+    Only candidates with stride=1 and out_ch >= 8 qualify.
     """
     model = ind.model
     if not isinstance(model, DynamicCNN):
@@ -119,7 +120,10 @@ def swap_conv_to_dw(ind: Individual) -> tuple[Individual, bool]:
     if not candidates:
         return ind, False
 
-    idx = candidates[np.random.randint(len(candidates))]
+    # Pick the layer with highest in_ch * out_ch (FLOPs proxy for k=3, same H/W)
+    idx = max(candidates, key=lambda i: (
+        model.conv_configs[i]["in_ch"] * model.conv_configs[i]["out_ch"]
+    ))
     cfg = model.conv_configs[idx]
     new_configs = [dict(c) for c in model.conv_configs]
     new_configs[idx] = {
