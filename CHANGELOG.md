@@ -2,6 +2,54 @@
 
 All notable changes to dNATY are documented here.
 
+## [1.2.0] - 2026-06-20 — FLOPs-guided compression, production auto-retrigger, failure export
+
+### Added
+
+- **`swap_conv_to_dw` FLOPs-guided selection** — previously chose a random eligible Conv2D layer;
+  now selects the layer with the highest `in_ch × out_ch` product (dominant FLOPs proxy), delivering
+  the largest reduction per operator call.
+  Real-data result (CIFAR-10 CNN, 20 trials): **55.8% FLOPs reduction vs 28.5% random baseline (+27.3 pp)**;
+  always targets the correct layer.
+
+- **`CnnEvolver` budget-aware boost** (`target_flops`, `budget_boost_factor` params) — when the best
+  individual in the population exceeds the FLOPs budget (`current_flops > target_flops × baseline_flops`),
+  the selection probability of `swap_conv_to_dw` and `prune_channels` is multiplied by `budget_boost_factor`
+  (default 3×). Baseline FLOPs are captured automatically at `_init_population`.
+  Real-data validation: compression operators selected **75% of the time when over budget vs 0% within budget**.
+
+- **`ProductionTracker.auto_retrigger(compress_fn, train_data, consecutive_drifts=3, on_trigger=None)`** —
+  monitors consecutive drift detections; when `psi_mean > threshold` fires N times in a row, calls
+  `compress_fn(train_data)` to recompress the model and re-fits the drift baseline automatically.
+  Real-data validation (MNIST + +5 std shift): PSI jumped from 0.037 (diluted) to **8.29 (pure shift)**
+  after buffer tuning; `auto_retrigger` fired correctly after 3 consecutive drift checks.
+
+- **`ProductionTracker.record_outcome(..., inputs=None)`** — new optional `inputs` parameter; when
+  provided, wrong predictions (predicted ≠ ground truth) are stored in a bounded buffer (`max_failures`,
+  default 1000) for later analysis.
+
+- **`ProductionTracker.export_failure_report(path, db_uri=None, n_components=2)`** — exports a JSON
+  report of stored failure cases with PCA 2-D projections of the failure inputs and a per-class error
+  breakdown. Optional `db_uri` (SQLite path or `sqlite:///…`) persists all failures to a SQL table
+  for external analysis.
+  Real-data validation (MNIST compressed MLP, 10,000 val samples): **454 failures (4.5%), PCA variance
+  81.5**, top confusion pairs: 9→4 (23×), 4→9 (15×), 2→7 (15×).
+
+- **`ProductionTracker.reset()`** now also clears `_failure_buffer` and `_consecutive_drift_count`.
+
+### Validated on real data
+
+| Feature | Dataset | Key result |
+|---|---|---|
+| FLOPs-guided swap | CIFAR-10 CNN | 55.8% vs 28.5% random (+27.3 pp) |
+| Budget-aware evolver | CIFAR-10 (2000 samples) | 75% compression-op rate when over budget |
+| auto_retrigger | MNIST (5000 train / 10K val) | Fires after 3 consecutive drifts, PSI=8.29 |
+| export_failure_report | MNIST val (10,000 samples) | 454 failures, 81.5 PCA variance, SQLite OK |
+
+Full results in `results/benchmark_v1_2_x.json`.
+
+---
+
 ## [1.1.7] - 2026-06-15 — Cross-platform console output + English-only messages
 
 ### Fixed

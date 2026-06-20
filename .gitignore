@@ -34,6 +34,7 @@ results/*
 !results/prove_it_results.json
 !results/prove_it_curves.csv
 !results/cpu_latency/
+!results/benchmark_v1_2_x.json
 DNATY_RESULTS.md
 
 # Jupyter
