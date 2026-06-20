@@ -178,12 +178,24 @@ def compress(
         arch=arch,
     )
     if result.model_grew:
+        if input_size >= 100:
+            _suggested = (f"nn.Linear({input_size}, 1024), nn.ReLU(), "
+                          f"nn.Linear(1024, 512), nn.ReLU(), "
+                          f"nn.Linear(512, 256), nn.ReLU(), nn.Linear(256, {n_classes})")
+        elif input_size >= 30:
+            _suggested = (f"nn.Linear({input_size}, 512), nn.ReLU(), "
+                          f"nn.Linear(512, 256), nn.ReLU(), "
+                          f"nn.Linear(256, 128), nn.ReLU(), nn.Linear(128, {n_classes})")
+        else:
+            _suggested = (f"nn.Linear({input_size}, 256), nn.ReLU(), "
+                          f"nn.Linear(256, 128), nn.ReLU(), "
+                          f"nn.Linear(128, 64), nn.ReLU(), nn.Linear(64, {n_classes})")
         warnings.warn(
-            f"dNATY: compressed model is LARGER than the original "
-            f"(FLOPs changed {result.flops_reduction_pct:+.1f}%, "
-            f"params changed {result.params_reduction_pct:+.1f}%). "
-            f"This usually means the input model was undersized for the task complexity. "
-            f"Try passing a larger initial model (more hidden units).",
+            f"dNATY: the output model is LARGER than the input "
+            f"(FLOPs {result.flops_reduction_pct:+.1f}%, params {result.params_reduction_pct:+.1f}%). "
+            f"Your baseline is already lean — dNATY needs an oversized starting point to compress. "
+            f"Try a larger baseline, for example:\n"
+            f"  model = nn.Sequential({_suggested})",
             UserWarning,
             stacklevel=2,
         )
@@ -304,11 +316,11 @@ def compress_cnn(
     )
     if result.model_grew:
         warnings.warn(
-            f"dNATY: compressed model is LARGER than the original "
-            f"(FLOPs changed {result.flops_reduction_pct:+.1f}%, "
-            f"params changed {result.params_reduction_pct:+.1f}%). "
-            f"This usually means the input model was undersized for the task complexity. "
-            f"Try passing a larger initial model (more hidden units).",
+            f"dNATY: the output model is LARGER than the input "
+            f"(FLOPs {result.flops_reduction_pct:+.1f}%, params {result.params_reduction_pct:+.1f}%). "
+            f"Your backbone classifier head is already lean — dNATY needs an oversized starting point "
+            f"to compress. Try increasing the head size before compressing, e.g. replace the final "
+            f"classifier with a wider MLP (512→256→n_classes) before calling compress_with_backbone().",
             UserWarning,
             stacklevel=2,
         )

@@ -6,7 +6,7 @@
 
 ### Evolutionary AI Model Compression
 
-**Up to 86% fewer FLOPs · accuracy kept · 18 benchmark datasets · no GPU required**
+**8–86% fewer FLOPs (median −56% across 17 real datasets) · accuracy kept · no GPU required**
 
 [![PyPI version](https://img.shields.io/pypi/v/dnaty?color=green&cacheSeconds=300)](https://pypi.org/project/dnaty/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-3776ab.svg?logo=python&logoColor=white)](https://www.python.org/)
@@ -80,7 +80,7 @@ print(result.benchmark_latency((784,)))   # p50/p95/p99 ms + fps
 
 **What you get with dNATY:**
 
-- **Smaller, cheaper models** — 18–86% fewer FLOPs across 18 benchmark datasets, accuracy kept
+- **Smaller, cheaper models** — 8–86% fewer FLOPs across 18 real datasets, accuracy kept
 - **No GPU** — the search runs on CPU in minutes, so it works in CI and on the hardware you already have
 - **No manual architecture design** — point it at a model + dataset, get a deployable `nn.Module` back
 - **One function call** — `compress(model, dataset)`; export to `.pt` / `.onnx`
@@ -121,29 +121,35 @@ All numbers measured on a standard desktop CPU, validation accuracy on a held-ou
 | HAR Sensors (UCI) | 10,299 | −46.8% | 99.17% | wearables · robotics |
 | MNIST (full 70K) | 70,000 | −41.8% | 98.68% | vision · digits |
 
-**5 market-grade synthetic domains** (n_generations=15, n_pop=12, deterministic feature-correlated labels):
+**5 public Kaggle datasets** — different sizes, domains, and feature counts. Reproduce: `python scripts/benchmark_market_real.py` (downloads from Kaggle, ~2 h on CPU).
 
-| Dataset | Samples | FLOPs ↓ | Val acc |
-|---|---|---|---|
-| Telecom Churn Prediction | 35,000 | −64.6% | 99.94% |
-| IoT Sensor Anomaly Detection | 50,000 | −61.4% | 99.18% |
-| Financial Fraud Detection | 100,000 | −60.3% | 99.31% |
-| E-commerce Purchase Propensity | 80,000 | −49.9% | 98.03% |
-| Healthcare Risk Stratification | 25,000 | −23.3% | 93.74% |
+| Dataset | Rows | Features | FLOPs ↓ | Val acc | Domain |
+|---|---|---|---|---|---|
+| IBM HR Employee Attrition | 1,470 | 51 | **−75.5%** | 99.3% | HR / corporate |
+| Adult Census Income | 32,561 | 104 | **−74.4%** | 90.4% | social / financial |
+| Air Quality (UCI) | 7,674 | 12 | **−45.0%** | 91.2% | environmental sensors |
+| Diabetes 130-US Hospitals | 101,766 | 119 | **−8.0%** | 89.3% | clinical / hospital |
+| Telco Customer Churn | 7,043 | 45 | +20% ⚠ | 93.2% | telecom |
 
-Compression scales with how oversized the model is — dNATY finds the right size, it doesn't force a fixed cut. Lean models get small cuts (that's correct Pareto behavior, not a bug).
+4 of 5 compressed (median −45%). The Telco case: NSGA-II explored deeper rather than narrower from the `[512, 256, 128]` baseline — `model_grew=True` was raised automatically. Passing a wider baseline (`[1024, 512, 256]`) or increasing `target_flops` resolves it. This is expected Pareto behavior, not a silent failure.
 
-**Continual learning (Split-MNIST, 5 tasks, 3 seeds)**
+Compression scales with how oversized the baseline is — dNATY finds the right size, it doesn't force a fixed cut. Lean models get small cuts (correct Pareto behavior); the library warns explicitly when nothing was cut.
 
-| Method | Backward Transfer (BWT) | |
+**Continual learning — 3 benchmarks, 3 seeds each**
+
+Split-MNIST (5 tasks, digit pairs) — proof of concept:
+
+| Method | BWT (↑ better) | |
 |---|---|---|
-| **dNATY (balanced replay)** | **−0.204** | **~5× less forgetting** |
-| EWC | −0.998 | near-total forgetting |
+| **dNATY (balanced replay)** | **−0.204** | **~5× less forgetting vs EWC** |
+| EWC (λ=400) | −0.998 | near-total forgetting |
 | MLP (no CL) | −0.998 | baseline |
+
+Permuted-MNIST (10 tasks, domain-incremental) and Split-CIFAR-10 (5 tasks, class-incremental) are harder benchmarks with results in `results/exp4_*` and `results/exp5_*`. Note: Split-MNIST is a weak benchmark — it is included for comparability with prior work. The harder benchmarks are the primary CL evidence. Full methodology and comparisons to ER-ACE/MAML: [METHODOLOGY.md](METHODOLOGY.md).
 
 <img src="https://raw.githubusercontent.com/pedrovergueiro/dNaty/main/results/cpu_latency/cpu_latency_comparison.png" alt="CPU latency comparison" width="640" />
 
-Reproduce: `python scripts/prove_it.py` (NAS vs random) · `python scripts/benchmark_market_real.py` (market datasets)
+Reproduce: `python scripts/prove_it.py` (NAS vs random) · `python -m dnaty.experiments.exp3_cl` (Split-MNIST) · `python -m dnaty.experiments.exp4_permuted_mnist` (Permuted-MNIST) · `python -m dnaty.experiments.exp5_split_cifar10` (Split-CIFAR-10)
 
 ---
 
