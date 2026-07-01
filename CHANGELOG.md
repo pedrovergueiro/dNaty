@@ -2,6 +2,20 @@
 
 All notable changes to dNATY are documented here.
 
+## [2.0.1] - 2026-06-30 — README and documentation corrections
+
+### Fixed
+
+- Benchmark numbers corrected across all docs and site (verified against result JSON files):
+  - Electrical Fault Detect: −86.0% → **−83.0%**, 99.04% → **99.25%**
+  - Breast Cancer (UCI): 100.0% → **99.56%**
+  - Headline range: "8–86%" → **"8–83%"** (max is Dry Bean Quality −83.4%, not Electrical Fault)
+- METHODOLOGY.md version header: 1.1.7 → 2.0.0
+- BENCHMARKS_EDGE.md: GitHub URL typo fixed (`pedrovergueiroo` → `pedrovergueiro`)
+- No API, algorithm, or benchmark changes — documentation only.
+
+---
+
 ## [2.0.0] - 2026-06-21 — Hardware-aware latency NAS, N:M sparsity, quantization-aware search, INT8 one-liner, telemetry, pandas/numpy input
 
 ### Added
