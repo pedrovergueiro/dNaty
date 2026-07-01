@@ -10,6 +10,11 @@ from __future__ import annotations
 import sys, time, json, warnings
 from pathlib import Path
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 import numpy as np
 import pandas as pd
 import torch
@@ -202,16 +207,15 @@ def download_and_run_all():
     except Exception as e:
         print(f"  SKIP Predictive Maint: {e}")
 
-    # ── 6. Heart Disease UCI ──────────────────────────────────────────────────
+    # ── 6. Pima Indians Diabetes (UCI) ───────────────────────────────────────
     try:
-        print("\n[6/6] Baixando redwankarimsony/heart-disease-uci...")
-        path = kagglehub.dataset_download("redwankarimsony/heart-disease-uci")
-        csvs = list(Path(path).rglob("*.csv"))
-        csv = max(csvs, key=lambda f: f.stat().st_size)
-        X, y, n_cls = _prep_csv(csv)
-        results.append(run_one("Heart Disease", X, y, n_cls, target_flops=0.3, n_generations=15))
+        print("\n[6/6] Baixando uciml/pima-indians-diabetes-database...")
+        path = kagglehub.dataset_download("uciml/pima-indians-diabetes-database")
+        csv = next(Path(path).rglob("*.csv"))
+        X, y, n_cls = _prep_csv(csv, label_col="Outcome")
+        results.append(run_one("Pima Diabetes", X, y, n_cls, target_flops=0.4, n_generations=15))
     except Exception as e:
-        print(f"  SKIP Heart Disease: {e}")
+        print(f"  SKIP Pima Diabetes: {e}")
 
     return results
 

@@ -209,7 +209,7 @@ No comparison against OFA or MnasNet is claimed — those target full conv searc
 
 ```bash
 pip install dnaty                # stable (recommended)
-pip install dnaty==1.1.7         # pin to this release
+pip install dnaty==2.0.0         # pin to this release
 pip install git+https://github.com/pedrovergueiro/dNaty  # latest from source
 ```
 
@@ -256,7 +256,7 @@ Prefer not to run it locally? [dnaty.org](https://dnaty.org) hosts the same engi
   title   = {dNaty: Dynamic Neuro-Adaptive sYstem with evoluTionarY Learning},
   year    = {2026},
   url     = {https://github.com/pedrovergueiro/dNaty},
-  version = {1.1.7},
+  version = {2.0.0},
   license = {BSL-1.1}
 }
 ```

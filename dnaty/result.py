@@ -11,6 +11,22 @@ from typing import Optional
 import torch
 import torch.nn as nn
 
+try:
+    from dnaty import __version__
+except ImportError:
+    __version__ = "unknown"
+
+
+def _set_onnx_meta(model_proto: "onnx.ModelProto", key: str, value: str) -> None:
+    """Upsert a string key/value in ONNX model metadata_props."""
+    for prop in model_proto.metadata_props:
+        if prop.key == key:
+            prop.value = value
+            return
+    entry = model_proto.metadata_props.add()
+    entry.key = key
+    entry.value = value
+
 
 @dataclass
 class CompressResult:
@@ -135,8 +151,41 @@ class CompressResult:
             "batch_size": batch_size,
         }
 
+    def quantize(self, dtype=None) -> "CompressResult":
+        """Apply dynamic INT8 quantization to the compressed model.
+
+        Returns a new CompressResult with the quantized model ready for CPU inference.
+        No calibration data needed — uses dynamic quantization (weights INT8,
+        activations quantized at runtime).
+
+        Args:
+            dtype: torch quantization dtype. Default: torch.qint8.
+
+        Returns:
+            New CompressResult with quantized model (all other metrics unchanged).
+
+        Example:
+            result = compress(model, data)
+            q_result = result.quantize()
+            q_result.model  # INT8 PyTorch model, ~2-4x faster on CPU
+            q_result.export_onnx("model_int8.onnx", input_shape=(784,))
+        """
+        import copy
+        if dtype is None:
+            dtype = torch.qint8
+        q_model = torch.quantization.quantize_dynamic(
+            copy.deepcopy(self.model).cpu(), {nn.Linear}, dtype=dtype
+        )
+        q = copy.copy(self)
+        q.model = q_model
+        return q
+
     def export_onnx(self, path: str, input_shape: tuple) -> None:
         """Export the compressed model to ONNX for CPU deployment (drones, cameras, robots).
+
+        When N:M sparsity was applied via compress(..., sparsity="2:4"), the sparsity
+        mask metadata is embedded in the ONNX file so edge runtimes and loaders can
+        reconstruct the pattern without re-applying it.
 
         Args:
             path:        Output file path, e.g. "model.onnx".
@@ -146,6 +195,7 @@ class CompressResult:
         Example:
             result.export_onnx("model.onnx", input_shape=(784,))
         """
+        import json
         dummy = torch.zeros(1, *input_shape)
         self.model.eval()
         kwargs = dict(
@@ -163,6 +213,160 @@ class CompressResult:
         except TypeError:
             # torch < 2.5 has no `dynamo` kwarg -- TorchScript is already the default.
             torch.onnx.export(self.model, dummy, path, **kwargs)
+
+        # Embed sparsity metadata if the model has sparse weights
+        try:
+            import onnx
+            from dnaty.utils.sparsity import sparsity_stats
+            stats = sparsity_stats(self.model)
+            if stats["global_sparsity_pct"] > 0.5:  # only if meaningful sparsity
+                model_proto = onnx.load(path)
+                _set_onnx_meta(model_proto, "dnaty_sparsity", json.dumps(stats))
+                _set_onnx_meta(model_proto, "dnaty_version", __version__)
+                _set_onnx_meta(model_proto, "dnaty_arch",    json.dumps(self.arch))
+                _set_onnx_meta(model_proto, "dnaty_accuracy", str(round(self.accuracy, 6)))
+                onnx.save(model_proto, path)
+        except ImportError:
+            pass  # onnx not installed; export is still valid, just no metadata
+
+    def push_to_hub(
+        self,
+        repo_id: str,
+        token: Optional[str] = None,
+        private: bool = False,
+        input_shape: Optional[tuple] = None,
+        commit_message: str = "Upload compressed model via dNATY",
+    ) -> str:
+        """Push the compressed model to HuggingFace Hub.
+
+        Uploads model_compressed.pt, model.onnx (if input_shape is provided),
+        and a structured model card with compression statistics.
+
+        Args:
+            repo_id:        HuggingFace repo ID, e.g. "username/my-model-compressed".
+            token:          HF API token. Defaults to HF_TOKEN env var if not set.
+            private:        Create a private repo (default False).
+            input_shape:    Input shape for ONNX export, e.g. (784,). Skips ONNX if None.
+            commit_message: Commit message for the Hub upload.
+
+        Returns:
+            URL of the uploaded model on HuggingFace Hub.
+
+        Requires:
+            pip install huggingface-hub
+
+        Example:
+            result.push_to_hub("myuser/mnist-compressed", input_shape=(784,))
+            # → "https://huggingface.co/myuser/mnist-compressed"
+        """
+        import os
+        import tempfile
+        try:
+            from huggingface_hub import HfApi
+        except ImportError:
+            raise ImportError(
+                "huggingface_hub is required: pip install huggingface-hub"
+            )
+
+        api = HfApi(token=token)
+        model_name = repo_id.split("/")[-1]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # 1. Save compressed model
+            pt_path = os.path.join(tmpdir, "model_compressed.pt")
+            self.save(pt_path)
+
+            # 2. Export ONNX if input_shape provided
+            onnx_note = ""
+            if input_shape is not None:
+                onnx_path = os.path.join(tmpdir, "model.onnx")
+                try:
+                    self.export_onnx(onnx_path, input_shape=input_shape)
+                    onnx_note = (
+                        f"\n```python\n# ONNX export (already included in this repo)\n"
+                        f"result.export_onnx('model.onnx', input_shape={input_shape})\n```\n"
+                    )
+                except Exception:
+                    pass
+
+            # 3. Write model card
+            sparsity_row = ""
+            try:
+                from dnaty.utils.sparsity import sparsity_stats
+                stats = sparsity_stats(self.model)
+                if stats["global_sparsity_pct"] > 0.5:
+                    sparsity_row = (
+                        f"| Sparsity (N:M) | {stats['global_sparsity_pct']:.1f}% "
+                        f"({stats['zero_weights']:,} / {stats['total_weights']:,} weights zeroed) |\n"
+                    )
+            except Exception:
+                pass
+
+            card = f"""---
+language:
+- en
+library_name: dnaty
+tags:
+- dnaty
+- compression
+- neural-architecture-search
+- edge-ml
+- pytorch
+---
+
+# {model_name}
+
+Compressed with **[dNATY](https://github.com/pedrovergueiroo/dNATY)** — Evolutionary Neural Architecture Search for CPU-first edge deployment.
+
+## Compression Summary
+
+```
+{self.summary()}
+```
+
+## Metrics
+
+| Metric | Value |
+|--------|-------|
+| FLOPs reduction | {self.flops_reduction_pct:.1f}% ({self.original_flops:,} → {self.compressed_flops:,}) |
+| Params reduction | {self.params_reduction_pct:.1f}% ({self.original_params:,} → {self.compressed_params:,}) |
+| Accuracy | {self.accuracy:.4f} |
+| Architecture (hidden) | {self.arch} |
+| NAS generations | {self.generations} |
+{sparsity_row}
+## Usage
+
+```python
+import dnaty
+
+result = dnaty.load("model_compressed.pt")
+print(result.summary())
+result.export_onnx("model.onnx", input_shape={input_shape or (784,)})
+
+# Measure real latency
+lat = result.benchmark_latency({input_shape or (784,)})
+print(f"p50 latency: {{lat['p50_ms']:.2f}} ms  |  {{lat['fps']:.0f}} FPS")
+```
+{onnx_note}
+## About dNATY
+
+dNATY uses evolutionary NAS with episodic memory to find compact, fast architectures
+for CPU-only edge devices (Raspberry Pi, drones, cameras, robots).
+No GPU required — no retraining from scratch.
+"""
+            card_path = os.path.join(tmpdir, "README.md")
+            with open(card_path, "w", encoding="utf-8") as f:
+                f.write(card)
+
+            # 4. Push to Hub
+            api.create_repo(repo_id=repo_id, private=private, exist_ok=True)
+            api.upload_folder(
+                folder_path=tmpdir,
+                repo_id=repo_id,
+                commit_message=commit_message,
+            )
+
+        return f"https://huggingface.co/{repo_id}"
 
 
 def load(path: str) -> CompressResult:

@@ -35,6 +35,9 @@ results/*
 !results/prove_it_curves.csv
 !results/cpu_latency/
 !results/benchmark_v1_2_x.json
+!results/benchmark_cnn_v1_2_x.json
+!results/latency_predictor.json
+!results/latency_dataset.json
 DNATY_RESULTS.md
 
 # Jupyter

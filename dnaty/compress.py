@@ -28,6 +28,100 @@ from dnaty._compress_helpers import (
 )
 
 
+def _maybe_convert_data(train_data):
+    """Convert numpy arrays, pandas DataFrames, or (X, y) tuples to DataLoader."""
+    # Already a DataLoader or FastDataset — pass through
+    from torch.utils.data import DataLoader
+    if isinstance(train_data, DataLoader):
+        return train_data
+    if hasattr(train_data, "__iter__") and not isinstance(train_data, tuple):
+        # FastDataset or any other iterable (not a plain tuple)
+        try:
+            import numpy as np
+            import pandas as pd
+            if not isinstance(train_data, (np.ndarray, pd.DataFrame)):
+                return train_data
+        except ImportError:
+            return train_data
+
+    import numpy as np
+    from torch.utils.data import DataLoader, TensorDataset
+
+    # (X, y) tuple
+    if isinstance(train_data, tuple) and len(train_data) == 2:
+        X, y = train_data
+        try:
+            import pandas as pd
+            if isinstance(X, pd.DataFrame):
+                X = X.values
+        except ImportError:
+            pass
+        if isinstance(X, np.ndarray):
+            X = torch.from_numpy(X.astype(np.float32))
+        if isinstance(y, np.ndarray):
+            y = torch.from_numpy(y.astype(np.int64))
+        if not isinstance(X, torch.Tensor):
+            X = torch.tensor(X, dtype=torch.float32)
+        if not isinstance(y, torch.Tensor):
+            y = torch.tensor(y, dtype=torch.long)
+        return DataLoader(TensorDataset(X, y), batch_size=256, shuffle=True)
+
+    # pandas DataFrame — last column = label
+    try:
+        import pandas as pd
+        if isinstance(train_data, pd.DataFrame):
+            y = torch.from_numpy(train_data.iloc[:, -1].values.astype(np.int64))
+            X = torch.from_numpy(train_data.iloc[:, :-1].values.astype(np.float32))
+            return DataLoader(TensorDataset(X, y), batch_size=256, shuffle=True)
+    except ImportError:
+        pass
+
+    # numpy 2D array — last column = label
+    if isinstance(train_data, np.ndarray) and train_data.ndim == 2:
+        X = torch.from_numpy(train_data[:, :-1].astype(np.float32))
+        y = torch.from_numpy(train_data[:, -1].astype(np.int64))
+        return DataLoader(TensorDataset(X, y), batch_size=256, shuffle=True)
+
+    return train_data
+
+
+def _write_telemetry(result: "CompressResult", hw_target: str, input_size: int) -> None:
+    """Append one JSON line to ~/.dnaty/telemetry.jsonl. Never raises."""
+    import json
+    import time
+    from pathlib import Path
+    try:
+        from dnaty.utils.hw_detect import detect_hw
+        from dnaty.utils.latency_bench import measure_latency
+        hw = detect_hw()
+        # Measure compressed model latency on current CPU
+        lat = measure_latency(result.model, input_shape=(input_size,), n_warmup=5, n_runs=30)
+        from dnaty import __version__ as _ver
+        record = {
+            "ts": round(time.time()),
+            "dnaty_version": _ver,
+            "arch": result.arch,
+            "input_size": input_size,
+            "original_flops": result.original_flops,
+            "compressed_flops": result.compressed_flops,
+            "flops_reduction_pct": round(result.flops_reduction_pct, 2),
+            "accuracy": round(result.accuracy, 4),
+            "hw_arch": hw.get("arch", "unknown"),
+            "hw_device_class": hw.get("device_class", "unknown"),
+            "hw_cores": hw.get("cores", 1),
+            "hw_target": hw_target,
+            "latency_p50_ms": lat["p50_ms"],
+            "latency_p95_ms": lat["p95_ms"],
+            "latency_fps": lat["fps"],
+        }
+        tele_path = Path.home() / ".dnaty" / "telemetry.jsonl"
+        tele_path.parent.mkdir(exist_ok=True)
+        with open(tele_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record) + "\n")
+    except Exception:
+        pass  # telemetry must never crash the main flow
+
+
 def _validate_target_flops(target_flops: float) -> None:
     if not (0.0 < target_flops <= 1.0):
         raise ValueError(
@@ -42,6 +136,8 @@ def compress(
     train_data,
     *,
     target_flops: float = 0.5,
+    target: str = "flops",
+    hw_target: str = "cpu",
     n_generations: int = 30,
     n_pop: int = 15,
     device: Optional[str] = None,
@@ -49,6 +145,8 @@ def compress(
     seed: Optional[int] = None,
     progress_callback: Optional[Callable] = None,
     finetune_epochs: int = 30,
+    sparsity: Optional[str] = None,
+    quant_aware: bool = False,
 ) -> CompressResult:
     """
     Find a smaller, faster architecture for the same task using evolutionary NAS.
@@ -65,6 +163,15 @@ def compress(
         train_data:        DataLoader or FastDataset used for both NAS and
                            fine-tuning.
         target_flops:      Target FLOPs as fraction of original (0.5 = 50% less).
+                           Ignored when target="latency".
+        target:            "flops" (default) or "latency". When "latency", the
+                           search minimises real ONNX Runtime latency on hw_target
+                           instead of FLOPs. LatencyEvolver is used automatically.
+        hw_target:         Target deployment device for latency optimisation.
+                           Used when target="latency". Examples: "cpu" (measures
+                           on current machine), "rpi4", "rpi5", "jetson_nano".
+                           Non-cpu devices are estimated via calibrated scaling
+                           tables (hw_detect.py) until measured on real hardware.
         n_generations:     Evolutionary generations (30 default).
         n_pop:             Population size (15 default).
         device:            'cpu' or 'cuda'. Auto-detected when None.
@@ -74,6 +181,13 @@ def compress(
         finetune_epochs:   Epochs to train the winning arch from scratch after
                            NAS completes (default 30). Significantly improves
                            accuracy by fully converging the best architecture.
+        sparsity:          Apply N:M structural sparsity after NAS. Pass "2:4"
+                           for 50% structured sparsity (compatible with sparse
+                           tensor cores). Applied before ONNX export. Default None.
+        quant_aware:       When True, uses QuantAwareEvolver — fitness evaluation
+                           runs under dynamic INT8 quantization so selected
+                           architectures are guaranteed to be quantization-friendly.
+                           Adds ~20% overhead per generation. Default False.
 
     Returns:
         CompressResult with the best model found and all compression metrics.
@@ -82,11 +196,34 @@ def compress(
         >>> from dnaty import compress
         >>> from dnaty.experiments.fast_dataset import FastDataset
         >>> ds = FastDataset("MNIST", device="cpu", train_subset=10_000)
+        >>> # FLOPs-guided (default)
         >>> result = compress(model, ds, target_flops=0.5, n_generations=30)
+        >>> # Latency-guided for Raspberry Pi 4
+        >>> result = compress(model, ds, target="latency", hw_target="rpi4")
         >>> print(result.summary())
     """
     import numpy as np
-    from dnaty.evolution.evolver import DnatyEvolver
+    from dnaty.evolution.evolver import DnatyEvolver, LatencyEvolver, QuantAwareEvolver
+
+    train_data = _maybe_convert_data(train_data)
+
+    # Route to LatencyEvolver when target="latency"
+    if target == "latency":
+        result = _compress_latency(
+            model, train_data,
+            hw_target=hw_target,
+            n_generations=n_generations,
+            n_pop=n_pop,
+            device=device,
+            verbose=verbose,
+            seed=seed,
+            progress_callback=progress_callback,
+            finetune_epochs=finetune_epochs,
+            quant_aware=quant_aware,
+        )
+        if sparsity:
+            result = _apply_sparsity(result, sparsity, verbose)
+        return result
     from dnaty.core.arch import DynamicMLP
     from dnaty.core.individual import Individual
     from dnaty.training.local_train import local_train, evaluate
@@ -107,7 +244,10 @@ def compress(
 
     lambda2 = max(1e-7, 5e-6 * (1.0 - target_flops))
 
-    evolver = DnatyEvolver(
+    evolver_cls = QuantAwareEvolver if quant_aware else DnatyEvolver
+    if quant_aware and verbose:
+        print("[compress] quant_aware=True — using QuantAwareEvolver (INT8 fitness)")
+    evolver = evolver_cls(
         n_pop=n_pop,
         n_generations=n_generations,
         t_local=3,
@@ -199,6 +339,115 @@ def compress(
             UserWarning,
             stacklevel=2,
         )
+    if sparsity:
+        result = _apply_sparsity(result, sparsity, verbose)
+    _write_telemetry(result, hw_target=hw_target, input_size=input_size)
+    return result
+
+
+def _apply_sparsity(result: "CompressResult", sparsity: str, verbose: bool) -> "CompressResult":
+    """Apply N:M sparsity to result.model and update stats."""
+    from dnaty.utils.sparsity import apply_nm_sparsity, sparsity_stats
+    try:
+        n, m = (int(x) for x in sparsity.split(":"))
+    except (ValueError, AttributeError):
+        raise ValueError(f"sparsity must be 'N:M' format (e.g. '2:4'), got: {sparsity!r}")
+    apply_nm_sparsity(result.model, n=n, m=m)
+    stats = sparsity_stats(result.model)
+    if verbose:
+        print(f"[sparsity {sparsity}] global_sparsity={stats['global_sparsity_pct']:.1f}%  "
+              f"zero_weights={stats['zero_weights']:,}/{stats['total_weights']:,}")
+    return result
+
+
+def _compress_latency(
+    model: nn.Module,
+    train_data,
+    *,
+    hw_target: str = "cpu",
+    n_generations: int = 30,
+    n_pop: int = 15,
+    device: Optional[str] = None,
+    verbose: bool = True,
+    seed: Optional[int] = None,
+    progress_callback: Optional[Callable] = None,
+    finetune_epochs: int = 30,
+    quant_aware: bool = False,
+) -> CompressResult:
+    """Internal: latency-aware NAS via LatencyEvolver."""
+    import numpy as np
+    from dnaty.evolution.evolver import LatencyEvolver, QuantAwareEvolver
+    from dnaty.training.local_train import local_train, evaluate
+
+    if device is None:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    if seed is not None:
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+
+    layer_sizes = _infer_layer_sizes(model)
+    input_size  = layer_sizes[0]
+    n_classes   = layer_sizes[-1]
+    init_hidden = layer_sizes[1:-1]
+
+    if quant_aware and verbose:
+        print("[compress] quant_aware=True with target=latency — INT8 fitness + latency objective")
+    evolver = LatencyEvolver(
+        n_pop=n_pop,
+        n_generations=n_generations,
+        t_local=3,
+        input_size=input_size,
+        n_classes=n_classes,
+        init_hidden=init_hidden,
+        device=device,
+        verbose=verbose,
+        target_device=hw_target,
+    )
+
+    orig_flops  = sum(2 * layer_sizes[i] * layer_sizes[i + 1] for i in range(len(layer_sizes) - 1))
+    orig_params = sum(p.numel() for p in model.parameters())
+
+    evolver.run(train_data, train_data, early_stop_patience=n_generations,
+                progress_callback=progress_callback)
+
+    # Best individual: highest accuracy on Pareto front
+    best = max(evolver.population, key=lambda ind: ind.acc)
+
+    compressed_flops  = best.count_flops()
+    compressed_params = best.count_params()
+    full_sizes = list(getattr(best.model, "layer_sizes", [input_size] + init_hidden))
+    arch = full_sizes[1:]
+
+    if finetune_epochs > 0:
+        if verbose:
+            print(f"\nPhase 2 - fine-tuning {finetune_epochs} epochs (LR 1e-4)...")
+        for _ in range(finetune_epochs):
+            local_train(best, train_data, n_epochs=1, lr=1e-4,
+                        lambda1=0.0, lambda2=0.0, device=device, batch_size=512)
+        final_acc, _ = evaluate(best, train_data, device)
+        best.acc = final_acc
+        compressed_flops  = best.count_flops()
+        compressed_params = best.count_params()
+
+    best_latency = getattr(best, "latency_ms", None)
+    if verbose and best_latency:
+        print(f"Best latency ({hw_target}): {best_latency:.2f} ms  "
+              f"({1000/best_latency:.0f} FPS)")
+
+    flops_reduction = 1.0 - compressed_flops / max(orig_flops, 1)
+    result = CompressResult(
+        model=best.model,
+        original_flops=orig_flops,
+        compressed_flops=compressed_flops,
+        original_params=orig_params,
+        compressed_params=compressed_params,
+        accuracy=best.acc,
+        flops_reduction=flops_reduction,
+        generations=n_generations,
+        arch=arch,
+    )
+    _write_telemetry(result, hw_target=hw_target, input_size=input_size)
     return result
 
 

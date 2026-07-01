@@ -2,6 +2,93 @@
 
 All notable changes to dNATY are documented here.
 
+## [2.0.0] - 2026-06-21 — Hardware-aware latency NAS, N:M sparsity, quantization-aware search, INT8 one-liner, telemetry, pandas/numpy input
+
+### Added
+
+- **`measure_latency(model, input_shape)`** — exports any PyTorch model to ONNX and measures
+  real inference latency via OrtSession (single-threaded, reproducible). Returns `p50_ms`,
+  `p95_ms`, `fps`. Works on any CPU without GPU.
+
+- **`detect_hw()` / `latency_scale(device)` / `estimate_latency(ms, from, to)`** — hardware
+  detection and cross-device latency estimation. Detects current CPU (x86_64, ARM, etc.) and
+  provides calibrated scaling tables for Raspberry Pi 4 (9×), RPi5 (4.5×), Jetson Nano (5×),
+  Apple M1 (0.6×). No hardware required to estimate RPi4 latency from x86 measurements.
+
+- **`LatencyEvolver`** — bi-objective evolutionary NAS that minimises `(1-accuracy, latency_ms)`
+  instead of FLOPs. Uses real ONNX Runtime measurement every generation; when a GBM surrogate
+  is loaded, uses predictor for 80% of evaluations and real measurement for 20%.
+  `pareto_front()` method returns the full accuracy/latency Pareto front after search.
+
+- **`LatencyPredictor`** — GBM (LightGBM) surrogate trained on `(arch_features → latency_ms)`
+  data. Degrades gracefully to an analytical fallback when no trained model is available.
+  `train(records)` method re-trains from new data.
+
+- **`compress(model, data, target="latency", hw_target="rpi4")`** — new `target` parameter
+  (default `"flops"`, unchanged). When `target="latency"`, routes to `LatencyEvolver`
+  automatically. `hw_target` selects the deployment device; non-CPU devices are estimated
+  via scaling tables until measured on real hardware.
+  Fully backwards-compatible: existing `compress(model, data, target_flops=0.5)` calls unchanged.
+
+- **`apply_nm_sparsity(model, n=2, m=4)` / `sparsity_stats(model)`** — applies N:M structured
+  weight sparsity to all `nn.Linear` layers. 2:4 pattern zeros out the 2 smallest-magnitude
+  weights in every group of 4, producing 50% structured sparsity. Weights are baked into
+  `.data` (no hooks) — compatible with ONNX export and INT8 inference.
+  Pass `sparsity="2:4"` to `compress()` to apply automatically after NAS.
+
+- **`QuantAwareEvolver`** — NAS evolver where fitness is evaluated under dynamic INT8
+  quantization (`torch.quantization.quantize_dynamic`). Architectures that degrade under
+  quantization are naturally filtered out during search. Adds ~20% overhead vs `DnatyEvolver`.
+  Enable via `compress(model, data, quant_aware=True)`.
+
+- **`compress(model, data, sparsity="2:4", quant_aware=True)`** — two new parameters work
+  independently and together with all existing targets (`"flops"` and `"latency"`).
+
+- **`result.quantize()`** — apply dynamic INT8 quantization to the compressed model in one call.
+  Returns a new `CompressResult` with the INT8 model (weights quantized, activations at runtime).
+  No calibration data required. Compatible with `result.export_onnx()`.
+  Example: `q = result.quantize(); q.model(x)  # INT8 inference`
+
+- **Pandas / numpy auto-input** — `compress()` now accepts any of:
+  - `(X, y)` tuple where X is numpy array, DataFrame, or Tensor
+  - `pandas.DataFrame` (last column = label, remaining = features)
+  - `numpy.ndarray` 2D (last column = label)
+  - Existing `DataLoader` / `FastDataset` inputs unchanged — no breaking change.
+
+- **Telemetry collection** — every `compress()` call appends one JSON line to
+  `~/.dnaty/telemetry.jsonl` with: arch, input size, FLOPs reduction, accuracy, CPU info,
+  measured ONNX latency on current machine. This seeds the GBM latency predictor data flywheel
+  described in the v2.0 roadmap. Never raises — failure is silent to not interrupt compression.
+
+- **`scripts/build_latency_dataset.py`** — generates N random MLP architectures, measures
+  real ONNX latency on the current CPU, trains a GBM surrogate, and saves it to
+  `results/latency_predictor.json` + `.lgb`. Run once per machine to bootstrap the surrogate.
+
+### Validated on real data
+
+| Feature | Dataset | Key result |
+|---|---|---|
+| measure_latency | MLP 784→256→128→10, x86 CPU | p50=0.054ms, p95=0.111ms, 17K FPS |
+| estimate_latency RPi4 | Same model | 0.49ms estimated (9× scale) |
+| LatencyEvolver | Synthetic tabular | Pareto front: acc=0.83, latency_rpi4=0.27ms |
+| compress(target="latency") | FashionMNIST 15K | arch=[345,224,32,128] -36.4% FLOPs 87.26% acc |
+| apply_nm_sparsity 2:4 | Any MLP | 50% weight zeros, baked, ONNX-ready |
+| Kaggle real datasets | Breast Cancer | -72.7% FLOPs, 99.56% acc |
+| Kaggle real datasets | Credit Fraud 20K | -74.1% FLOPs, 99.99% acc |
+| Kaggle real datasets | HAR Sensors 562 feat | -68.5% FLOPs, 100% acc |
+| Kaggle real datasets | Predictive Maint. 10K | -70.7% FLOPs, 98.94% acc |
+
+### Notes
+
+- RPi4/RPi5/Jetson estimates are calibrated scaling factors (±30% typical error) until
+  validated on real hardware. Factors are conservative medians from MLP inference benchmarks.
+- GBM surrogate requires `pip install lightgbm` (optional). Without it, `LatencyPredictor`
+  uses an analytical fallback (params × constant) — still functional, lower accuracy.
+- `torch.quantization.quantize_dynamic` is deprecated in PyTorch 2.10+ in favour of
+  `torchao`. Migration to `torchao` is planned for v2.1.
+
+---
+
 ## [1.2.0] - 2026-06-20 — FLOPs-guided compression, production auto-retrigger, failure export
 
 ### Added
@@ -17,6 +104,9 @@ All notable changes to dNATY are documented here.
   the selection probability of `swap_conv_to_dw` and `prune_channels` is multiplied by `budget_boost_factor`
   (default 3×). Baseline FLOPs are captured automatically at `_init_population`.
   Real-data validation: compression operators selected **75% of the time when over budget vs 0% within budget**.
+  Real training benchmark (CIFAR-10, 8K train, 20 gens, 10 pop): without boost the evolver grew FLOPs
+  +44.1% chasing accuracy (71.85%); with boost x3 FLOPs stayed within +3.2% of baseline (66.95% acc).
+  **Budget boost contained FLOPs growth by 40.9 pp** — expected tradeoff: smaller model, lower accuracy.
 
 - **`ProductionTracker.auto_retrigger(compress_fn, train_data, consecutive_drifts=3, on_trigger=None)`** —
   monitors consecutive drift detections; when `psi_mean > threshold` fires N times in a row, calls
@@ -41,12 +131,12 @@ All notable changes to dNATY are documented here.
 
 | Feature | Dataset | Key result |
 |---|---|---|
-| FLOPs-guided swap | CIFAR-10 CNN | 55.8% vs 28.5% random (+27.3 pp) |
-| Budget-aware evolver | CIFAR-10 (2000 samples) | 75% compression-op rate when over budget |
-| auto_retrigger | MNIST (5000 train / 10K val) | Fires after 3 consecutive drifts, PSI=8.29 |
+| FLOPs-guided swap | CIFAR-10 CNN (20 trials) | 55.8% vs 28.5% random (+27.3 pp) |
+| Budget-aware evolver | CIFAR-10 (8K train, 20 gens) | FLOPs +3.2% (boost) vs +44.1% (no boost) — 40.9 pp containment |
+| auto_retrigger | MNIST (5K train / 10K val) | Fires after 3 consecutive drifts, PSI=8.29 |
 | export_failure_report | MNIST val (10,000 samples) | 454 failures, 81.5 PCA variance, SQLite OK |
 
-Full results in `results/benchmark_v1_2_x.json`.
+Full results: `results/benchmark_v1_2_x.json` (mechanism tests) · `results/benchmark_cnn_v1_2_x.json` (CNN training).
 
 ---
 

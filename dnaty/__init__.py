@@ -37,13 +37,19 @@ Quick start:
     print(f"Total FLOPs: {count_flops(model, input_shape=(784,)):,}")
 """
 
-__version__ = "1.1.7"
+__version__ = "2.0.0"
 
 from dnaty.compress import compress, compress_cnn, compress_with_backbone, prune_conv_channels
 from dnaty.result import CompressResult, load
-from dnaty.evolution.evolver import DnatyEvolver, CnnEvolver
+from dnaty.evolution.evolver import DnatyEvolver, CnnEvolver, LatencyEvolver, QuantAwareEvolver
 from dnaty.monitoring import DriftDetector, ProductionTracker
 from dnaty.utils.flops_counter import count_flops, flops_by_layer
+from dnaty.utils.latency_bench import measure_latency
+from dnaty.utils.hw_detect import detect_hw, latency_scale, estimate_latency
+from dnaty.utils.latency_predictor import LatencyPredictor
+from dnaty.utils.latency_tables import lookup_linear_latency, estimate_mlp_latency
+from dnaty.utils.sparsity import apply_nm_sparsity, sparsity_stats
+from dnaty.utils.proxies import ProxyEnsemble, score_candidate
 
 __all__ = [
     # Core API
@@ -56,9 +62,25 @@ __all__ = [
     # Evolvers
     "DnatyEvolver",
     "CnnEvolver",
+    "LatencyEvolver",
+    "QuantAwareEvolver",
     # Monitoring
     "DriftDetector",
     "ProductionTracker",
+    # Latency / hardware
+    "measure_latency",
+    "detect_hw",
+    "latency_scale",
+    "estimate_latency",
+    "LatencyPredictor",
+    "lookup_linear_latency",
+    "estimate_mlp_latency",
+    # Zero-cost proxies
+    "ProxyEnsemble",
+    "score_candidate",
+    # Sparsity
+    "apply_nm_sparsity",
+    "sparsity_stats",
     # FLOPs
     "count_flops",
     "flops_by_layer",

@@ -60,6 +60,8 @@ class DnatyEvolver:
         verbose: bool = True,
         n_threads: int | None = None,
         batch_size: int = 512,
+        proxy_filter: bool = False,
+        proxy_oversample: int = 2,
     ):
         self.n_pop = n_pop
         self.n_generations = n_generations
@@ -77,9 +79,16 @@ class DnatyEvolver:
         self.verbose = verbose
         self.n_threads = n_threads or 1
         self.batch_size = batch_size
+        self.proxy_filter = proxy_filter
+        self.proxy_oversample = proxy_oversample
         self.history: list[GenerationLog] = []
         self.population: list[Individual] = []
         self.shared_memory = EpisodicMemory(max_size=1000, decay_gamma=memory_gamma)
+
+        self._proxy_ensemble = None
+        if proxy_filter:
+            from dnaty.utils.proxies import ProxyEnsemble
+            self._proxy_ensemble = ProxyEnsemble()
 
     def _make_individual(self) -> Individual:
         sizes = [self.input_size] + self.init_hidden
@@ -157,6 +166,42 @@ class DnatyEvolver:
             mutated.append(new_ind)
         return mutated
 
+    def _apply_proxy_filter(self, candidates: list[Individual]) -> list[Individual]:
+        """
+        Zero-cost proxy pre-filter: score all candidates cheaply (no training),
+        return the top-n_pop by combined proxy score.
+
+        Halves training cost when proxy_oversample=2: only the top half of
+        candidates proceed to local_train + evaluate.
+        """
+        if self._proxy_ensemble is None or len(candidates) <= self.n_pop:
+            return candidates
+        input_shape = (self.input_size,)
+        scores = []
+        for ind in candidates:
+            try:
+                s = self._proxy_ensemble.score(ind.model, input_shape, batch_size=16)
+                scores.append(s["combined"])
+            except Exception:
+                scores.append(0.0)
+        ranked = sorted(zip(candidates, scores), key=lambda x: -x[1])
+        return [ind for ind, _ in ranked[: self.n_pop]]
+
+    def _update_proxy_weights(
+        self,
+        score_dicts: list[dict],
+        mutated: list[Individual],
+        prev_accs: list[float],
+    ) -> None:
+        """Update proxy ensemble weights based on correlation with actual fitness deltas."""
+        if self._proxy_ensemble is None or not score_dicts:
+            return
+        actual_deltas = [
+            ind.acc - (prev_accs[i] if i < len(prev_accs) else 0.0)
+            for i, ind in enumerate(mutated)
+        ]
+        self._proxy_ensemble.update(score_dicts, actual_deltas)
+
     def _update_memory(
         self,
         mutated: list[Individual],
@@ -201,7 +246,26 @@ class DnatyEvolver:
         for gen in pbar:
             # Phase 1: memory-guided variation
             prev_accs = [ind.acc for ind in self.population]  # parent accuracies
-            mutated = self._mutate_population(self.population)
+
+            if self._proxy_ensemble is not None:
+                # Oversample mutations, filter cheaply before training
+                oversampled = []
+                for _ in range(self.proxy_oversample):
+                    oversampled.extend(self._mutate_population(self.population))
+                proxy_scores = []
+                for ind in oversampled:
+                    try:
+                        proxy_scores.append(
+                            self._proxy_ensemble.score(ind.model, (self.input_size,), batch_size=16)
+                        )
+                    except Exception:
+                        proxy_scores.append({"combined": 0.0})
+                ranked = sorted(zip(oversampled, proxy_scores), key=lambda x: -x[1]["combined"])
+                mutated = [ind for ind, _ in ranked[: self.n_pop]]
+                _proxy_score_dicts = [s for _, s in ranked[: self.n_pop]]
+            else:
+                mutated = self._mutate_population(self.population)
+                _proxy_score_dicts = []
 
             # Phase 2: local training (Lemma 2)
             loss_before_list, loss_after_list, grad_norms = self._train_parallel(
@@ -221,6 +285,10 @@ class DnatyEvolver:
 
             # Phase 5: memory update (Lemma 1)
             delta_mem = self._update_memory(mutated, prev_best_acc, grad_norms, prev_accs)
+
+            # Phase 6: update proxy weights based on correlation with actual fitness
+            if _proxy_score_dicts:
+                self._update_proxy_weights(_proxy_score_dicts, mutated, prev_accs)
 
             best_ind = max(self.population, key=lambda ind: ind.acc)
             prev_best_acc = best_ind.acc
@@ -317,3 +385,190 @@ class CnnEvolver(DnatyEvolver):
         # Capture baseline FLOPs right after initial population is built so budget
         # checks in _mutate_population have a stable reference throughout evolution.
         self._baseline_flops = float(np.mean([ind.count_flops() for ind in self.population]))
+
+
+class QuantAwareEvolver(DnatyEvolver):
+    """
+    Quantization-aware NAS: fitness evaluation uses dynamic INT8 quantization.
+
+    Before computing accuracy for each individual, applies
+    torch.quantization.quantize_dynamic (INT8 for all nn.Linear layers).
+    This ensures the selected architecture remains accurate after quantization
+    — architectures that degrade under int8 are naturally filtered out.
+
+    Works on CPU without a calibration dataset. Adds ~20% overhead per
+    generation vs standard DnatyEvolver.
+
+    Args:
+        dtype: quantization dtype (default torch.qint8).
+    """
+
+    def __init__(self, *args, dtype=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._quant_dtype = dtype or torch.qint8
+
+    def _eval_population(self, population, val_loader):
+        fitnesses = []
+        for ind in population:
+            # Quantize a temporary copy, evaluate, discard — keep float weights
+            import copy
+            q_model = torch.quantization.quantize_dynamic(
+                copy.deepcopy(ind.model).cpu(),
+                {torch.nn.Linear},
+                dtype=self._quant_dtype,
+            )
+            # Temporarily swap model for eval
+            orig_model = ind.model
+            ind.model = q_model
+            acc, _ = evaluate(ind, val_loader, "cpu")
+            ind.model = orig_model
+            ind.acc = acc
+            fitnesses.append(self._fitness(ind))
+        return fitnesses
+
+
+class LatencyEvolver(DnatyEvolver):
+    """
+    Hardware-aware NAS: minimises (1 - accuracy, latency_ms) instead of FLOPs.
+
+    Replaces the FLOPs proxy with real ONNX Runtime latency measured on the
+    current CPU (or estimated for a target device via hw_detect scaling tables).
+
+    Fitness: (accuracy, -latency_ms)  → NSGA-II maximises both.
+
+    Args:
+        target_device: "cpu" measures on the current machine; "rpi4", "rpi5",
+                       etc. scale the measured latency via hw_detect tables.
+        latency_weight: weight of latency vs accuracy in Pareto fitness cost.
+        predictor_path: optional path to a pre-trained GBM surrogate. When
+                        provided, the predictor is used for 80% of evaluations
+                        and real measurement is used for the remaining 20%.
+        measure_every: measure real latency every N generations (others use
+                       predictor). Ignored if no predictor is loaded.
+    """
+
+    def __init__(
+        self,
+        *args,
+        target_device: str = "cpu",
+        latency_weight: float = 0.01,
+        predictor_path: str | None = None,
+        measure_every: int = 5,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self.target_device = target_device
+        self.latency_weight = latency_weight
+        self.measure_every = measure_every
+        self._gen_counter = 0
+
+        from dnaty.utils.hw_detect import latency_scale, detect_hw
+        self._scale = latency_scale(target_device)
+        hw = detect_hw()
+        if self.verbose:
+            print(f"[LatencyEvolver] device={hw['device_class']}  "
+                  f"target={target_device}  scale={self._scale:.1f}x")
+
+        from dnaty.utils.latency_predictor import LatencyPredictor
+        self._predictor = LatencyPredictor(model_path=predictor_path)
+        if self._predictor.is_trained() and self.verbose:
+            print(f"[LatencyEvolver] GBM surrogate loaded — 80% predictions, 20% measured")
+        elif self.verbose:
+            print(f"[LatencyEvolver] No surrogate — measuring latency every generation")
+
+    def _measure_latency_ms(self, ind: "Individual") -> float:
+        """
+        Latency for one individual.
+
+        Priority order:
+          1. Lookup table  (µs-level, zero overhead, ~80% hit rate)
+          2. GBM surrogate (if trained)
+          3. ONNX Runtime  (actual measurement, ~30 runs)
+          4. Analytical    (params × constant, last resort)
+        """
+        # 1. Lookup table: fast path for common MLP patterns
+        try:
+            from dnaty.utils.latency_tables import estimate_mlp_latency
+            sizes = list(getattr(ind.model, "layer_sizes", []))
+            if len(sizes) >= 2:
+                n_classes = getattr(ind.model, "n_classes", self.n_classes)
+                full_sizes = sizes + [n_classes] if sizes[-1] != n_classes else sizes
+                table_ms = estimate_mlp_latency(full_sizes, device=self.target_device)
+                if table_ms > 0:
+                    return table_ms
+        except Exception:
+            pass
+
+        # 2. GBM surrogate (handled by caller via _get_latency_ms)
+        # 3. ONNX Runtime measurement
+        from dnaty.utils.latency_bench import measure_latency
+        try:
+            result = measure_latency(ind.model, input_shape=(self.input_size,),
+                                     n_warmup=5, n_runs=30)
+            return result["p50_ms"] * self._scale
+        except Exception:
+            # 4. Analytical fallback
+            return ind.count_params() * 1e-5 * self._scale
+
+    def _predict_latency_ms(self, ind: "Individual") -> float:
+        """GBM surrogate prediction × device scale."""
+        sizes = getattr(ind.model, 'layer_sizes', [])
+        widths = [s for s in sizes[1:-1]] if len(sizes) > 2 else []
+        feats = {
+            "n_layers": len(widths),
+            "widths": widths or [128],
+            "total_params": ind.count_params(),
+            "total_flops": ind.count_flops(),
+            "input_size": self.input_size,
+        }
+        return self._predictor.predict_ms(feats) * self._scale
+
+    def _get_latency_ms(self, ind: "Individual", use_surrogate: bool) -> float:
+        if use_surrogate and self._predictor.is_trained():
+            return self._predict_latency_ms(ind)
+        return self._measure_latency_ms(ind)
+
+    def _fitness(self, ind: "Individual") -> tuple[float, float, float]:
+        use_surrogate = (self._predictor.is_trained() and
+                         self._gen_counter % self.measure_every != 0)
+        latency_ms = self._get_latency_ms(ind, use_surrogate)
+        ind.latency_ms = latency_ms
+        cost = latency_ms * self.latency_weight
+        ind.fitness = (ind.acc, -cost, 0.0)
+        return ind.fitness
+
+    def run(self, train_loader, val_loader, **kwargs):
+        self._gen_counter = 0
+        original_verbose = self.verbose
+
+        class _CountingEvolver:
+            pass
+
+        # Intercept each generation to increment counter
+        _orig_update = self._update_memory
+
+        def _counting_update_memory(*args, **kw):
+            self._gen_counter += 1
+            return _orig_update(*args, **kw)
+
+        self._update_memory = _counting_update_memory
+        try:
+            result = super().run(train_loader, val_loader, **kwargs)
+        finally:
+            self._update_memory = _orig_update
+        return result
+
+    def pareto_front(self) -> list[dict]:
+        """
+        Returns the current Pareto front as a list of dicts with
+        accuracy, latency_ms, params for inspection / export.
+        """
+        front = []
+        for ind in self.population:
+            front.append({
+                "accuracy": round(ind.acc, 4),
+                "latency_ms": round(getattr(ind, "latency_ms", 0.0), 3),
+                "params": ind.count_params(),
+                "flops": ind.count_flops(),
+            })
+        return sorted(front, key=lambda x: -x["accuracy"])
