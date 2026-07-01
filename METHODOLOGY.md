@@ -134,7 +134,7 @@ The most direct baseline. `scripts/prove_it.py` runs dNATY vs. a random NAS base
 
 **Result range:** −18.8% to −83.4% across 13 datasets. The median is approximately −56%. The maximum (−83.4%, Dry Bean Quality, 16 features) reflects a case where the initial architecture is heavily oversized relative to feature dimensionality.
 
-> **Reviewer note on "up to 86%":** The headline figure is the best-case result, not the typical result. The median reduction across the 13 real datasets (−56%) is the more informative summary. In general, compression scales with how oversized the initial architecture is — a deliberately lean baseline will compress less (correct Pareto behavior, not a failure of the algorithm).
+> **Reviewer note on "up to 83%":** The headline figure is the best-case result, not the typical result. The median reduction across the 13 real datasets (−56%) is the more informative summary. In general, compression scales with how oversized the initial architecture is — a deliberately lean baseline will compress less (correct Pareto behavior, not a failure of the algorithm).
 
 ### 4.2 Experiment 2 — 5 Real Kaggle Datasets
 
