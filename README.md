@@ -6,7 +6,7 @@
 
 ### Evolutionary AI Model Compression
 
-**8–86% fewer FLOPs (median −56% across 17 real datasets) · accuracy kept · no GPU required**
+**8–83% fewer FLOPs (median −56% across 17 real datasets) · accuracy kept · no GPU required**
 
 [![PyPI version](https://img.shields.io/pypi/v/dnaty?color=green&cacheSeconds=300)](https://pypi.org/project/dnaty/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-3776ab.svg?logo=python&logoColor=white)](https://www.python.org/)
@@ -80,7 +80,7 @@ print(result.benchmark_latency((784,)))   # p50/p95/p99 ms + fps
 
 **What you get with dNATY:**
 
-- **Smaller, cheaper models** — 8–86% fewer FLOPs across 18 real datasets, accuracy kept
+- **Smaller, cheaper models** — 8–83% fewer FLOPs across 18 real datasets, accuracy kept
 - **No GPU** — the search runs on CPU in minutes, so it works in CI and on the hardware you already have
 - **No manual architecture design** — point it at a model + dataset, get a deployable `nn.Module` back
 - **One function call** — `compress(model, dataset)`; export to `.pt` / `.onnx`
@@ -112,10 +112,10 @@ All numbers measured on a standard desktop CPU, validation accuracy on a held-ou
 
 | Dataset | Samples | FLOPs ↓ | Val acc | Domain |
 |---|---|---|---|---|
-| Electrical Fault Detect | 12,001 | **−86.0%** | 99.04% | smart grid sensors |
+| Electrical Fault Detect | 12,001 | **−83.0%** | 99.25% | smart grid sensors |
 | Dry Bean Quality | 13,611 | −83.4% | 92.43% | agricultural IoT |
 | Predictive Maint. (AI4I) | 10,000 | −83.1% | 96.70% | factory IoT |
-| Breast Cancer (UCI) | 569 | −72.6% | 100.0% | clinical tabular |
+| Breast Cancer (UCI) | 569 | −72.6% | 99.56% | clinical tabular |
 | Credit Card Fraud (full) | 284,807 | −64.0% | 99.96% | financial anomaly |
 | Network Intrusion (NSL-KDD) | 31,490 | −56.3% | 99.46% | edge security |
 | HAR Sensors (UCI) | 10,299 | −46.8% | 99.17% | wearables · robotics |

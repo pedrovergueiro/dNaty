@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>dNATY v2.0 — Technical Overview & Competitive Analysis</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,300;0,400;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --ink:      #1a1a2e;
+  --ink2:     #374151;
+  --muted:    #6b7280;
+  --faint:    #9ca3af;
+  --rule:     #e5e7eb;
+  --bg-alt:   #f9fafb;
+  --bg-code:  #f3f4f6;
+  --green:    #15803d;
+  --green-bg: #f0fdf4;
+  --green-bd: #bbf7d0;
+  --red:      #b91c1c;
+  --red-bg:   #fef2f2;
+  --amber:    #92400e;
+  --amber-bg: #fffbeb;
+  --amber-bd: #fde68a;
+  --blue:     #1d4ed8;
+  --blue-bg:  #eff6ff;
+  --accent:   #15803d;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 10.5pt; }
+
+body {
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-weight: 400;
+  color: var(--ink);
+  background: #fff;
+  line-height: 1.65;
+}
+
+.page {
+  max-width: 210mm;
+  margin: 0 auto;
+  padding: 20mm 22mm 18mm;
+}
+
+/* ── Running head ── */
+.running-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 6pt;
+  border-bottom: 0.5pt solid var(--ink);
+  margin-bottom: 20pt;
+  font-family: 'Inter', sans-serif;
+  font-size: 7.5pt;
+  color: var(--muted);
+  letter-spacing: 0.3px;
+}
+
+.running-head .journal {
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-size: 7pt;
+}
+
+/* ── Title block ── */
+.title-block { margin-bottom: 22pt; }
+
+.doc-type {
+  font-family: 'Inter', sans-serif;
+  font-size: 7.5pt;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 8pt;
+}
+
+h1.doc-title {
+  font-family: 'Source Serif 4', serif;
+  font-size: 22pt;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--ink);
+  margin-bottom: 6pt;
+  letter-spacing: -0.3px;
+}
+
+.doc-subtitle {
+  font-family: 'Inter', sans-serif;
+  font-size: 10pt;
+  color: var(--ink2);
+  font-weight: 400;
+  margin-bottom: 14pt;
+}
+
+.author-block {
+  display: flex;
+  align-items: flex-start;
+  gap: 14pt;
+  padding: 10pt 12pt;
+  border-top: 1pt solid var(--rule);
+  border-bottom: 1pt solid var(--rule);
+  margin-bottom: 18pt;
+}
+
+.author-info {
+  flex: 1;
+  font-family: 'Inter', sans-serif;
+  font-size: 8.5pt;
+}
+
+.author-name { font-weight: 600; color: var(--ink); font-size: 9pt; }
+.author-meta { color: var(--muted); margin-top: 2pt; line-height: 1.55; }
+.author-meta a { color: var(--accent); text-decoration: none; font-family: 'JetBrains Mono', monospace; font-size: 8pt; }
+
+.version-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--green-bg);
+  border: 1px solid var(--green-bd);
+  border-radius: 4px;
+  padding: 3px 9px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8pt;
+  font-weight: 600;
+  color: var(--green);
+  white-space: nowrap;
+  align-self: center;
+}
+
+/* ── Abstract ── */
+.abstract {
+  background: var(--bg-alt);
+  border-left: 3pt solid var(--accent);
+  padding: 11pt 14pt;
+  margin-bottom: 22pt;
+  font-size: 9.5pt;
+  line-height: 1.7;
+  color: var(--ink2);
+}
+
+.abstract-label {
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 7.5pt;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 5pt;
+}
+
+.keywords {
+  margin-top: 8pt;
+  font-family: 'Inter', sans-serif;
+  font-size: 8pt;
+  color: var(--muted);
+}
+
+.keywords strong { color: var(--ink2); }
+
+/* ── Section headers ── */
+h2.sec {
+  font-family: 'Inter', sans-serif;
+  font-size: 9pt;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--ink);
+  border-bottom: 1.5pt solid var(--ink);
+  padding-bottom: 3pt;
+  margin: 20pt 0 10pt;
+}
+
+h3.subsec {
+  font-family: 'Inter', sans-serif;
+  font-size: 9.5pt;
+  font-weight: 600;
+  color: var(--ink2);
+  margin: 12pt 0 6pt;
+}
+
+/* ── Body text ── */
+p { margin-bottom: 8pt; font-size: 10pt; }
+p:last-child { margin-bottom: 0; }
+
+/* ── Two columns ── */
+.cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16pt; }
+.cols3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12pt; }
+
+/* ── Tables ── */
+.tbl-wrap { margin: 10pt 0 6pt; overflow-x: auto; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 8.5pt;
+  font-family: 'Inter', sans-serif;
+}
+
+caption {
+  font-size: 8pt;
+  color: var(--muted);
+  text-align: left;
+  padding-bottom: 4pt;
+  font-style: italic;
+}
+
+thead tr { background: var(--ink); }
+thead th {
+  color: #fff;
+  padding: 5.5pt 8pt;
+  text-align: left;
+  font-weight: 600;
+  font-size: 7.5pt;
+  letter-spacing: 0.3px;
+}
+
+tbody tr:nth-child(even) { background: var(--bg-alt); }
+tbody tr.hi { background: var(--green-bg) !important; }
+
+tbody td {
+  padding: 5.5pt 8pt;
+  border-bottom: 0.5pt solid var(--rule);
+  vertical-align: middle;
+  color: var(--ink2);
+  line-height: 1.4;
+}
+
+td.tool { font-weight: 700; color: var(--ink); }
+td.tool-hi { font-weight: 700; color: var(--green); }
+td.yes { color: var(--green); font-weight: 600; text-align: center; }
+td.no  { color: var(--red);   font-weight: 600; text-align: center; }
+td.par { color: var(--amber); font-weight: 500; text-align: center; }
+td.num { font-family: 'JetBrains Mono', monospace; color: var(--green); font-weight: 600; }
+td.cen { text-align: center; }
+
+.tbl-note {
+  font-size: 7.5pt;
+  color: var(--muted);
+  font-family: 'Inter', sans-serif;
+  margin-top: 3pt;
+  font-style: italic;
+}
+
+/* ── Callout boxes ── */
+.callout {
+  border-radius: 4px;
+  padding: 10pt 12pt;
+  margin: 10pt 0;
+  font-size: 9.5pt;
+  line-height: 1.6;
+}
+
+.callout-label {
+  font-family: 'Inter', sans-serif;
+  font-size: 7pt;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 4pt;
+}
+
+.callout.green { background: var(--green-bg); border: 1px solid var(--green-bd); }
+.callout.green .callout-label { color: var(--green); }
+
+.callout.amber { background: var(--amber-bg); border: 1px solid var(--amber-bd); }
+.callout.amber .callout-label { color: var(--amber); }
+
+.callout.blue { background: var(--blue-bg); border: 1px solid #bfdbfe; }
+.callout.blue .callout-label { color: var(--blue); }
+
+/* ── API feature list ── */
+.feature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8pt; margin: 8pt 0; }
+
+.feature-item {
+  background: var(--bg-alt);
+  border: 0.5pt solid var(--rule);
+  border-radius: 4px;
+  padding: 8pt 10pt;
+}
+
+.feature-name {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8pt;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 3pt;
+}
+
+.feature-desc {
+  font-family: 'Inter', sans-serif;
+  font-size: 8pt;
+  color: var(--ink2);
+  line-height: 1.45;
+}
+
+/* ── Code ── */
+code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8pt;
+  background: var(--bg-code);
+  padding: 1px 4px;
+  border-radius: 3px;
+  color: var(--accent);
+}
+
+pre {
+  background: var(--ink);
+  color: #e2e8f0;
+  border-radius: 5px;
+  padding: 10pt 12pt;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8pt;
+  line-height: 1.75;
+  margin: 8pt 0;
+  overflow-x: auto;
+}
+
+pre .kw { color: #86efac; }
+pre .cm { color: #6b7280; }
+pre .st { color: #fcd34d; }
+
+/* ── Q&A ── */
+.qa-block { margin-bottom: 10pt; }
+
+.qa-q {
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 9pt;
+  color: var(--ink);
+  margin-bottom: 3pt;
+  display: flex;
+  gap: 7pt;
+  align-items: flex-start;
+}
+
+.qa-q::before {
+  content: 'Q';
+  background: var(--ink);
+  color: #fff;
+  font-size: 7pt;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  margin-top: 1pt;
+  letter-spacing: 0.5px;
+}
+
+.qa-a {
+  font-size: 9.5pt;
+  color: var(--ink2);
+  line-height: 1.6;
+  padding-left: 20pt;
+  font-family: 'Source Serif 4', serif;
+}
+
+/* ── Stat boxes ── */
+.stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8pt; margin: 10pt 0; }
+
+.stat-box {
+  background: var(--bg-alt);
+  border: 0.5pt solid var(--rule);
+  border-radius: 4px;
+  padding: 8pt;
+  text-align: center;
+}
+
+.stat-box.hi { background: var(--green-bg); border-color: var(--green-bd); }
+
+.stat-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 16pt;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1.1;
+}
+
+.stat-lbl {
+  font-family: 'Inter', sans-serif;
+  font-size: 7pt;
+  color: var(--muted);
+  margin-top: 3pt;
+  line-height: 1.35;
+}
+
+/* ── Bullets ── */
+ul.bul { list-style: none; padding: 0; margin: 6pt 0; }
+ul.bul li {
+  display: flex; gap: 7pt; align-items: flex-start;
+  padding: 3pt 0;
+  font-size: 9.5pt;
+  color: var(--ink2);
+  line-height: 1.5;
+}
+ul.bul li::before { content: '—'; color: var(--accent); flex-shrink: 0; font-weight: 600; }
+ul.bul li strong { color: var(--ink); }
+
+/* ── Divider ── */
+hr { border: none; border-top: 0.5pt solid var(--rule); margin: 16pt 0; }
+
+/* ── Footer ── */
+.doc-footer {
+  margin-top: 24pt;
+  padding-top: 8pt;
+  border-top: 0.5pt solid var(--ink);
+  display: flex;
+  justify-content: space-between;
+  font-family: 'Inter', sans-serif;
+  font-size: 7.5pt;
+  color: var(--muted);
+}
+
+/* ── Print ── */
+@media print {
+  .page { padding: 14mm 18mm; }
+  .no-break { page-break-inside: avoid; }
+  h2.sec { page-break-after: avoid; }
+  h3.subsec { page-break-after: avoid; }
+  .callout, .feature-item, .stat-box { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  thead tr { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  tr.hi { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- Running head -->
+<div class="running-head">
+  <span class="journal">dNATY Technical Brief · Vergueiro Tech · 2026</span>
+  <span>Confidencial · Uso interno e acadêmico</span>
+</div>
+
+<!-- Title block -->
+<div class="title-block">
+  <div class="doc-type">Análise técnica e competitiva</div>
+  <h1 class="doc-title">dNATY v2.0 — Evolutionary Neural Architecture Search<br>for CPU-Only Edge Deployment</h1>
+  <div class="doc-subtitle">Posicionamento de mercado · Funcionalidades · Resultados validados · Proposta de colaboração</div>
+
+  <div class="author-block">
+    <div class="author-info">
+      <div class="author-name">Pedro Vergueiro</div>
+      <div class="author-meta">
+        Vergueiro Tech &nbsp;·&nbsp;
+        <a href="mailto:pedrol.vergueiro@gmail.com">pedrol.vergueiro@gmail.com</a> &nbsp;·&nbsp;
+        <a href="https://github.com/pedrovergueiro/dNaty">github.com/pedrovergueiro/dNaty</a><br>
+        <code style="font-size:7.5pt; background:none; padding:0; color:inherit;">pip install dnaty</code>
+        &nbsp;·&nbsp; Licença BSL-1.1 (livre para pesquisa)
+      </div>
+    </div>
+    <span class="version-badge">v2.0.0 · Junho 2026</span>
+  </div>
+</div>
+
+<!-- Abstract -->
+<div class="abstract no-break">
+  <div class="abstract-label">Resumo</div>
+  <p style="margin:0; font-size:9.5pt;">
+    dNATY é uma biblioteca open-source de compressão evolutiva de redes neurais MLP/CNN voltada
+    para inferência em hardware sem GPU. A versão 2.0 introduz busca evolutiva orientada a latência
+    real (ONNX Runtime), estimativa de latência em dispositivos alvo sem hardware físico (RPi 4/5,
+    Jetson Nano), esparsidade estruturada N:M (2:4), quantização INT8 integrada ao processo de busca,
+    e monitoramento de produção com auto-retriggering de compressão. Em 11 datasets industriais
+    avaliados, a redução de FLOPs varia de 36% a 83% com acurácia mantida ou melhorada em todos os casos.
+    Em aprendizado contínuo (Split-MNIST, 5 tarefas, 3 seeds), o dNATY apresenta 4,9× menos
+    esquecimento catastrófico que EWC (Backward Transfer: −0,204 vs −0,998).
+  </p>
+  <div class="keywords">
+    <strong>Palavras-chave:</strong> neural architecture search, model compression, edge inference,
+    evolutionary algorithms, NSGA-II, continual learning, Pareto optimization, IoT, CPU-only deployment
+  </div>
+</div>
+
+<!-- 1. POSICIONAMENTO -->
+<h2 class="sec">1. Posicionamento e gap de mercado</h2>
+
+<p>
+  O deploy de modelos de aprendizado de máquina em dispositivos embarcados — câmeras industriais,
+  drones autônomos, sensores IoT, robôs — enfrenta um gargalo estrutural: as ferramentas de
+  compressão existentes exigem GPU, retreinamento completo, ou integração profunda com o pipeline
+  de treino original. O dNATY endereça exclusivamente o cenário em que <em>nenhuma dessas três
+  condições pode ser satisfeita</em>.
+</p>
+
+<div class="callout green no-break">
+  <div class="callout-label">Proposição central</div>
+  Dado um modelo PyTorch já treinado (qualquer <code>nn.Module</code>), o dNATY retorna um modelo
+  comprimido que roda em CPU genérica — sem acesso ao pipeline de treino original, sem GPU,
+  sem retreinamento, com uma única chamada de função.
+</div>
+
+<div class="stats-row no-break">
+  <div class="stat-box hi"><div class="stat-val">83%</div><div class="stat-lbl">FLOPs reduction<br>(pico · Dry Bean Quality)</div></div>
+  <div class="stat-box hi"><div class="stat-val">4.9×</div><div class="stat-lbl">menos esquecimento<br>catastrófico vs EWC</div></div>
+  <div class="stat-box">  <div class="stat-val">11</div>  <div class="stat-lbl">datasets industriais<br>benchmarkados</div></div>
+  <div class="stat-box">  <div class="stat-val">72</div>  <div class="stat-lbl">testes automatizados<br>na suite de CI</div></div>
+</div>
+
+<!-- 2. FUNCIONALIDADES v2.0 -->
+<h2 class="sec">2. Funcionalidades — dNATY v2.0</h2>
+
+<h3 class="subsec">2.1 API principal</h3>
+
+<pre><span class="kw">from</span> dnaty <span class="kw">import</span> compress, load
+
+<span class="cm"># Compressão por FLOPs (padrão)</span>
+result = compress(model, X_train, y_train, target_flops=0.5)
+
+<span class="cm"># Compressão orientada a latência em RPi 4 (sem ter o hardware)</span>
+result = compress(model, X, y, target=<span class="st">"latency"</span>, hw_target=<span class="st">"rpi4"</span>)
+
+<span class="cm"># Com esparsidade 2:4 + quantização INT8</span>
+result = compress(model, X, y, sparsity=<span class="st">"2:4"</span>, quant_aware=True)
+
+<span class="cm"># Aceita numpy, pandas ou DataLoader — sem conversão manual</span>
+result = compress(model, df)  <span class="cm"># DataFrame: última coluna = label</span>
+
+result.summary()              <span class="cm"># métricas de compressão</span>
+result.save(<span class="st">"model.pt"</span>)      <span class="cm"># persiste arquitetura + pesos</span>
+result.export_onnx(<span class="st">"model.onnx"</span>, input_shape=(784,))
+result.benchmark_latency((784,))   <span class="cm"># p50/p95/FPS em CPU</span>
+q = result.quantize()         <span class="cm"># INT8 dinâmico em uma linha</span></pre>
+
+<h3 class="subsec">2.2 Módulos e evolvers disponíveis</h3>
+
+<div class="feature-grid no-break">
+  <div class="feature-item">
+    <div class="feature-name">DnatyEvolver</div>
+    <div class="feature-desc">NAS evolutivo base com NSGA-II. Otimiza acurácia × FLOPs. Episodic memory pondera operadores bem-sucedidos em gerações anteriores.</div>
+  </div>
+  <div class="feature-item">
+    <div class="feature-name">LatencyEvolver</div>
+    <div class="feature-desc">NAS orientado a latência real (ONNX Runtime). Usa surrogate GBM para 80% das avaliações; medição real para 20%. Retorna Pareto front acurácia × latência.</div>
+  </div>
+  <div class="feature-item">
+    <div class="feature-name">CnnEvolver</div>
+    <div class="feature-desc">NAS para CNNs com seleção FLOPs-guided de camadas. Budget-aware boost (3×) quando o modelo excede o budget de FLOPs. Validado em CIFAR-10.</div>
+  </div>
+  <div class="feature-item">
+    <div class="feature-name">QuantAwareEvolver</div>
+    <div class="feature-desc">NAS com fitness avaliado sob quantização INT8 dinâmica. Arquiteturas que degradam sob quantização são filtradas durante a busca. +20% overhead vs base.</div>
+  </div>
+  <div class="feature-item">
+    <div class="feature-name">compress_with_backbone</div>
+    <div class="feature-desc">Suporte a ResNet, MobileNetV2, EfficientNet, ViT. Extrai features do backbone congelado, aplica NAS na cabeça MLP, reconecta. <code>finetune_backbone=True</code> disponível.</div>
+  </div>
+  <div class="feature-item">
+    <div class="feature-name">DriftDetector + ProductionTracker</div>
+    <div class="feature-desc">Monitoramento PSI/KL em produção. <code>auto_retrigger</code> recomprime automaticamente após N drifts consecutivos. <code>export_failure_report</code> com PCA 2D e SQLite.</div>
+  </div>
+  <div class="feature-item">
+    <div class="feature-name">apply_nm_sparsity</div>
+    <div class="feature-desc">Esparsidade estruturada N:M (padrão 2:4 — 50% zeros). Pesos baked no <code>.data</code>, sem hooks. Compatível com export ONNX e inferência INT8.</div>
+  </div>
+  <div class="feature-item">
+    <div class="feature-name">LatencyPredictor</div>
+    <div class="feature-desc">Surrogate GBM treinado em (features de arquitetura → latência ms). Degrada graciosamente para fallback analítico sem LightGBM. Flywheel de dados via telemetria.</div>
+  </div>
+  <div class="feature-item">
+    <div class="feature-name">detect_hw / estimate_latency</div>
+    <div class="feature-desc">Detecção de CPU (x86_64, ARM). Tabelas calibradas para RPi 4 (9×), RPi 5 (4,5×), Jetson Nano (5×), Apple M1 (0,6×). Estima latência sem ter o hardware.</div>
+  </div>
+  <div class="feature-item">
+    <div class="feature-name">count_flops / flops_by_layer</div>
+    <div class="feature-desc">Contagem precisa de FLOPs por operação: <code>nn.Linear</code>, <code>nn.Conv2d</code>, depthwise separável. Usado internamente pelo NSGA-II e exposto na API pública.</div>
+  </div>
+</div>
+
+<!-- 3. BENCHMARKS -->
+<h2 class="sec">3. Resultados experimentais</h2>
+
+<h3 class="subsec">3.1 Redução de FLOPs — datasets industriais reais</h3>
+
+<div class="tbl-wrap no-break">
+<table>
+  <caption>Tabela 1. Resultados em 11 datasets reais. CPU only · 30 gerações · validação hold-out 20% · PyTorch 2.0</caption>
+  <thead>
+    <tr>
+      <th style="width:26%">Dataset</th>
+      <th style="width:12%">Amostras</th>
+      <th style="width:12%">Features</th>
+      <th style="width:14%; text-align:center;">FLOPs red.</th>
+      <th style="width:14%; text-align:center;">Acurácia val.</th>
+      <th style="width:22%">Domínio</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr class="hi">
+      <td class="tool-hi">Electrical Fault Detect.</td>
+      <td>12.000</td><td>6</td>
+      <td class="num" style="text-align:center;">−83%</td>
+      <td style="text-align:center; font-weight:600;">99,25%</td>
+      <td>Industrial IoT</td>
+    </tr>
+    <tr>
+      <td class="tool">Dry Bean Quality</td>
+      <td>13.611</td><td>16</td>
+      <td class="num" style="text-align:center;">−83%</td>
+      <td style="text-align:center;">92,43%</td>
+      <td>Visão / qualidade</td>
+    </tr>
+    <tr>
+      <td class="tool">Predictive Maintenance</td>
+      <td>10.000</td><td>6</td>
+      <td class="num" style="text-align:center;">−83%</td>
+      <td style="text-align:center;">96,70%</td>
+      <td>Industrial IoT</td>
+    </tr>
+    <tr>
+      <td class="tool">Stellar Classification</td>
+      <td>100.000</td><td>17</td>
+      <td class="num" style="text-align:center;">−82%</td>
+      <td style="text-align:center;">85,13%</td>
+      <td>Astronomia</td>
+    </tr>
+    <tr>
+      <td class="tool">Breast Cancer UCI</td>
+      <td>569</td><td>30</td>
+      <td class="num" style="text-align:center;">−73%</td>
+      <td style="text-align:center; font-weight:600;">99,56%</td>
+      <td>Saúde</td>
+    </tr>
+    <tr>
+      <td class="tool">Credit Card Fraud</td>
+      <td>20.000</td><td>29</td>
+      <td class="num" style="text-align:center;">−64%</td>
+      <td style="text-align:center;">99,96%</td>
+      <td>Finanças / segurança</td>
+    </tr>
+    <tr>
+      <td class="tool">Network Intrusion (NSL-KDD)</td>
+      <td>25.192</td><td>118</td>
+      <td class="num" style="text-align:center;">−63%</td>
+      <td style="text-align:center;">99,46%</td>
+      <td>Cibersegurança IoT</td>
+    </tr>
+    <tr>
+      <td class="tool">HAR Sensors</td>
+      <td>10.299</td><td>562</td>
+      <td class="num" style="text-align:center;">−47%</td>
+      <td style="text-align:center; font-weight:600;">99,17%</td>
+      <td>Wearables / IoT</td>
+    </tr>
+    <tr>
+      <td class="tool">Adult Income</td>
+      <td>48.842</td><td>14</td>
+      <td class="num" style="text-align:center;">−47%</td>
+      <td style="text-align:center;">83,60%</td>
+      <td>Tabular</td>
+    </tr>
+    <tr>
+      <td class="tool">MNIST 70K</td>
+      <td>70.000</td><td>784</td>
+      <td class="num" style="text-align:center;">−42%</td>
+      <td style="text-align:center;">98,68%</td>
+      <td>Visão (referência)</td>
+    </tr>
+    <tr>
+      <td class="tool">Covertype Forest</td>
+      <td>581.012</td><td>54</td>
+      <td class="num" style="text-align:center;">−36%</td>
+      <td style="text-align:center;">90,07%</td>
+      <td>Ambiental</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h3 class="subsec">3.2 Aprendizado contínuo (Backward Transfer)</h3>
+
+<div class="cols2 no-break" style="gap:14pt;">
+  <div class="tbl-wrap">
+    <table>
+      <caption>Tabela 2. BWT em Split-MNIST (5 tarefas, 3 seeds). BWT → 0 = menos esquecimento.</caption>
+      <thead>
+        <tr><th>Método</th><th style="text-align:right;">BWT (média)</th><th style="text-align:right;">vs dNATY</th></tr>
+      </thead>
+      <tbody>
+        <tr class="hi">
+          <td class="tool-hi">dNATY (replay bal.)</td>
+          <td style="text-align:right; font-weight:700; color:var(--green);">−0,204</td>
+          <td style="text-align:right; color:var(--green); font-weight:600;">referência</td>
+        </tr>
+        <tr>
+          <td class="tool">EWC</td>
+          <td style="text-align:right;">−0,998</td>
+          <td style="text-align:right; color:var(--red);">4,9× pior</td>
+        </tr>
+        <tr>
+          <td class="tool">MLP sem CL</td>
+          <td style="text-align:right;">−0,998</td>
+          <td style="text-align:right; color:var(--red);">4,9× pior</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div>
+    <div class="callout green" style="height:100%;">
+      <div class="callout-label">Relevância para IoT</div>
+      Dispositivos embarcados recebem dados novos continuamente sem possibilidade de retreinamento
+      completo. O replay balanceado integrado do dNATY preserva conhecimento de tarefas anteriores
+      enquanto incorpora novos padrões — sem infraestrutura adicional.
+    </div>
+  </div>
+</div>
+
+<h3 class="subsec">3.3 Validação das funcionalidades v2.0</h3>
+
+<div class="tbl-wrap no-break">
+<table>
+  <caption>Tabela 3. Resultados de validação das novas funcionalidades da versão 2.0.</caption>
+  <thead>
+    <tr><th style="width:28%">Funcionalidade</th><th style="width:26%">Dataset / Configuração</th><th>Resultado-chave</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="tool">measure_latency</td>
+      <td>MLP 784→256→128→10, CPU x86</td>
+      <td>p50 = 0,054 ms · p95 = 0,111 ms · 17.000 FPS</td>
+    </tr>
+    <tr>
+      <td class="tool">estimate_latency (RPi 4)</td>
+      <td>Mesmo modelo (sem hardware físico)</td>
+      <td>0,49 ms estimado (fator 9×) — ±30% erro típico</td>
+    </tr>
+    <tr>
+      <td class="tool">LatencyEvolver</td>
+      <td>FashionMNIST 15K, target=latency, hw=rpi4</td>
+      <td>arch=[345,224,32,128] · −36,4% FLOPs · 87,26% acc</td>
+    </tr>
+    <tr>
+      <td class="tool">CnnEvolver FLOPs-guided</td>
+      <td>CIFAR-10, 20 trials comparativos</td>
+      <td>55,8% red. FLOPs vs 28,5% random (+27,3 pp)</td>
+    </tr>
+    <tr>
+      <td class="tool">Budget-aware boost (3×)</td>
+      <td>CIFAR-10 (8K train, 20 gens)</td>
+      <td>FLOPs +3,2% (com boost) vs +44,1% (sem boost)</td>
+    </tr>
+    <tr>
+      <td class="tool">apply_nm_sparsity 2:4</td>
+      <td>Qualquer nn.Linear</td>
+      <td>50% zeros estruturados · baked em .data · ONNX OK</td>
+    </tr>
+    <tr>
+      <td class="tool">auto_retrigger</td>
+      <td>MNIST + shift gaussiano (+5σ)</td>
+      <td>PSI=8,29 · disparo correto após 3 drifts consecutivos</td>
+    </tr>
+    <tr>
+      <td class="tool">export_failure_report</td>
+      <td>MNIST val (10.000 amostras)</td>
+      <td>454 falhas (4,5%) · PCA variância 81,5 · SQLite OK</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<!-- 4. ANÁLISE COMPETITIVA -->
+<h2 class="sec">4. Análise competitiva</h2>
+
+<div class="tbl-wrap no-break">
+<table>
+  <caption>Tabela 4. Comparativo de ferramentas de compressão e NAS para edge ML.</caption>
+  <thead>
+    <tr>
+      <th style="width:16%">Ferramenta</th>
+      <th style="width:10%; text-align:center;">GPU obrig.</th>
+      <th style="width:10%; text-align:center;">Retreina</th>
+      <th style="width:10%; text-align:center;">CPU genér.</th>
+      <th style="width:10%; text-align:center;">Pós-treino</th>
+      <th style="width:9%; text-align:center;">INT8</th>
+      <th style="width:9%; text-align:center;">CL nativo</th>
+      <th style="width:9%; text-align:center;">Latency NAS</th>
+      <th style="width:17%">Limitação principal</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr class="hi">
+      <td class="tool-hi">dNATY v2.0 ✦</td>
+      <td class="yes">Não</td><td class="yes">Não</td><td class="yes">Sim</td>
+      <td class="yes">Sim</td><td class="yes">Sim</td><td class="yes">Sim</td><td class="yes">Sim</td>
+      <td>MLP/tabular core; CNN via backbone</td>
+    </tr>
+    <tr>
+      <td class="tool">TensorRT</td>
+      <td class="no">Sim (NVIDIA)</td><td class="no">Sim</td><td class="no">Não</td>
+      <td class="par">Parcial</td><td class="yes">Sim</td><td class="no">Não</td><td class="yes">Sim</td>
+      <td>Hardware NVIDIA obrigatório</td>
+    </tr>
+    <tr>
+      <td class="tool">TFLite</td>
+      <td class="par">Opcional</td><td class="no">Sim (QAT)</td><td class="par">Parcial</td>
+      <td class="no">Não</td><td class="yes">Sim</td><td class="no">Não</td><td class="par">Parcial</td>
+      <td>Ecossistema TF; retraining necessário</td>
+    </tr>
+    <tr>
+      <td class="tool">NNCF (Intel)</td>
+      <td class="par">Opcional</td><td class="no">Sim</td><td class="yes">Sim</td>
+      <td class="no">Não</td><td class="yes">Sim</td><td class="no">Não</td><td class="no">Não</td>
+      <td>Integração no loop de treino obrigatória</td>
+    </tr>
+    <tr>
+      <td class="tool">OFA / MnasNet</td>
+      <td class="no">Sim</td><td class="no">Sim (dias)</td><td class="no">Não</td>
+      <td class="no">Não</td><td class="par">Parcial</td><td class="no">Não</td><td class="yes">Sim</td>
+      <td>Custo de GPU enorme; não é pós-treino</td>
+    </tr>
+    <tr>
+      <td class="tool">torch.nn.utils.prune</td>
+      <td class="yes">Não</td><td class="no">Sim</td><td class="yes">Sim</td>
+      <td class="no">Não</td><td class="no">Não</td><td class="no">Não</td><td class="no">Não</td>
+      <td>Manual, sem automação, sem Pareto</td>
+    </tr>
+    <tr>
+      <td class="tool">AMC (MIT)</td>
+      <td class="no">Sim</td><td class="no">Sim</td><td class="no">Não</td>
+      <td class="no">Não</td><td class="no">Não</td><td class="no">Não</td><td class="no">Não</td>
+      <td>RL requer GPU + pipeline de treino</td>
+    </tr>
+    <tr>
+      <td class="tool">DeepSparse</td>
+      <td class="yes">Não</td><td class="no">Sim</td><td class="yes">Sim</td>
+      <td class="no">Não</td><td class="yes">Sim</td><td class="no">Não</td><td class="no">Não</td>
+      <td>Esparsidade via pipeline de treino deles</td>
+    </tr>
+  </tbody>
+</table>
+<div class="tbl-note">✦ CNN via <code>compress_with_backbone</code> (ResNet, MobileNetV2, EfficientNet, ViT). NAS direto em CNNs profundas é WIP (v2.x roadmap). INT8 via <code>QuantAwareEvolver</code> + <code>result.quantize()</code>.</div>
+</div>
+
+<div class="cols2" style="margin-top:10pt;">
+  <div class="callout green no-break">
+    <div class="callout-label">Vantagens reais do dNATY</div>
+    <ul class="bul" style="margin:0;">
+      <li><strong>CPU + pós-treino + sem retreinamento:</strong> combinação única — nenhum concorrente entrega os três</li>
+      <li><strong>Latency NAS sem hardware físico:</strong> estima latência em RPi/Jetson a partir de medição x86</li>
+      <li><strong>INT8 integrado ao NAS:</strong> arquiteturas ruins sob quantização são filtradas durante a busca</li>
+      <li><strong>CL out-of-the-box:</strong> nenhuma ferramenta concorrente oferece replay nativo</li>
+      <li><strong>Monitoramento de produção:</strong> drift detection + auto-retrigger integrados</li>
+    </ul>
+  </div>
+  <div class="callout amber no-break">
+    <div class="callout-label">Limitações honestas</div>
+    <ul class="bul" style="margin:0;">
+      <li><strong>CNN profunda direta:</strong> TensorRT e NNCF são mais maduros para ResNet/EfficientNet sem backbone</li>
+      <li><strong>Latência estimada (não medida):</strong> fatores de escala para RPi/Jetson têm ±30% de erro típico sem hardware real</li>
+      <li><strong>GBM surrogate:</strong> requer <code>pip install lightgbm</code> opcional; sem ele usa fallback analítico</li>
+      <li><strong>Foco MLP/tabular:</strong> NAS direto em CNNs profundas está no roadmap v2.x</li>
+    </ul>
+  </div>
+</div>
+
+<!-- 5. COMO RESPONDER -->
+<h2 class="sec">5. Perguntas técnicas frequentes</h2>
+
+<div class="qa-block no-break">
+  <div class="qa-q">Por que não usar TFLite ou TensorRT?</div>
+  <div class="qa-a">TensorRT exige hardware NVIDIA — dispositivos ARM com CPU genérica não são suportados. TFLite requer acesso ao pipeline de treino original e normalmente quantization-aware training; não é possível partir de um <code>.pth</code> qualquer sem retreinar. O dNATY opera exclusivamente pós-treino.</div>
+</div>
+
+<div class="qa-block no-break">
+  <div class="qa-q">Por que não usar NNCF da Intel?</div>
+  <div class="qa-a">NNCF é uma ferramenta de treino, não de pós-treino — requer hooks no loop de loss e normalmente GPU recomendada. O dNATY não precisa do código de treino original, apenas do modelo e de uma amostra de dados de validação.</div>
+</div>
+
+<div class="qa-block no-break">
+  <div class="qa-q">Por que não OFA ou MnasNet?</div>
+  <div class="qa-a">OFA treina um supernet do zero por dias em cluster de GPU e então extrai subnets. São propostas diametralmente opostas: dNATY parte de um modelo já treinado. Custo de entrada: OFA = semanas de GPU + dataset completo de treino. dNATY = minutos de CPU + amostra de validação.</div>
+</div>
+
+<div class="qa-block no-break">
+  <div class="qa-q">dNATY funciona com CNNs?</div>
+  <div class="qa-a"><code>compress_with_backbone</code> suporta ResNet, MobileNetV2, EfficientNet e ViT — extrai features do backbone congelado, aplica NAS na cabeça MLP e reconecta. NAS estrutural direto em CNNs profundas (camada a camada) está no roadmap v2.x. Para o caso de uso do CEIA (câmeras, drones), o fluxo backbone + MLP cobre a maioria dos cenários reais.</div>
+</div>
+
+<div class="qa-block no-break">
+  <div class="qa-q">Os resultados são reproduzíveis?</div>
+  <div class="qa-a">Sim. O repositório contém 72 testes automatizados (<code>pytest</code>) e scripts de benchmarking com dados reais do Kaggle. O script <code>python scripts/prove_it.py</code> reproduz os resultados de NAS e aprendizado contínuo com seed fixo. Todos os datasets utilizados são públicos com instruções de download no README.</div>
+</div>
+
+<div class="qa-block no-break">
+  <div class="qa-q">Como o dNATY se posiciona academicamente?</div>
+  <div class="qa-a">A abordagem NSGA-II para NAS é bem estabelecida na literatura. A contribuição do dNATY é a composição: <strong>(1)</strong> NAS multiobjetivo pós-treino em CPU; <strong>(2)</strong> otimização Pareto de latência real via ONNX Runtime + surrogate GBM; <strong>(3)</strong> esparsidade N:M integrada à busca evolutiva; <strong>(4)</strong> aprendizado contínuo com replay nativo. Nenhuma ferramenta existente integra essas quatro dimensões em uma única API.</div>
+</div>
+
+<!-- 6. PROPOSTA DE COLABORAÇÃO -->
+<h2 class="sec">6. Proposta de colaboração — CEIA-UFG</h2>
+
+<p>
+  O alinhamento com as linhas de pesquisa do CEIA em visão embarcada e sistemas autônomos abre
+  três frentes complementares:
+</p>
+
+<div class="cols3 no-break" style="margin-top:8pt;">
+  <div class="callout green" style="margin:0;">
+    <div class="callout-label">A · Teste de campo</div>
+    Aplicar o dNATY em modelos já treinados do CEIA para câmeras, drones ou sensores. Medir
+    ganho real de latência no hardware do grupo. Resultado mensurável em dias.
+    Contribuição do CEIA: hardware IoT e modelo existente.
+  </div>
+  <div class="callout blue" style="margin:0;">
+    <div class="callout-label">B · Parceria de pesquisa</div>
+    Co-autoria em publicação sobre NAS evolutivo para edge — contribuição técnica do dNATY
+    (código, benchmarks, API) + expertise do CEIA em visão e robótica.
+    Venue potencial: BRACIS, ENIAC, IJCNN, IEEE Access.
+  </div>
+  <div class="callout amber" style="margin:0;">
+    <div class="callout-label">C · Troca técnica</div>
+    Sessão técnica de 20–30 min com o grupo. Apresentação da abordagem evolutiva, discussão
+    de limitações e extensões. Sem compromisso formal. Ponto de partida natural para A ou B.
+  </div>
+</div>
+
+<hr>
+
+<!-- Footer -->
+<div class="doc-footer">
+  <span>dNATY v2.0.0 · Vergueiro Tech · Pedro Vergueiro · pedrol.vergueiro@gmail.com</span>
+  <span>github.com/pedrovergueiro/dNaty · pip install dnaty · Junho 2026</span>
+</div>
+
+</div><!-- /page -->
+</body>
+</html>

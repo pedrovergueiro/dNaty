@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>dNATY — Apresentação Técnica · CEIA-UFG</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0a0b0e;
+      --panel:   #111318;
+      --line:    #1f2128;
+      --dim2:    #2a2f3a;
+      --dim:     #4a5060;
+      --muted:   #8090a8;
+      --white:   #e8eaf0;
+      --green:   #4ade80;
+      --green2:  #22c55e;
+      --green3:  #16a34a;
+      --red:     #ef4444;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--white);
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* Background grid */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(var(--line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--line) 1px, transparent 1px);
+      background-size: 56px 56px;
+      opacity: 0.25;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Progress bar */
+    #progress {
+      position: fixed; top: 0; left: 0;
+      height: 2px; background: var(--green);
+      transition: width .35s ease;
+      z-index: 200;
+    }
+
+    /* Slides */
+    .deck { width: 100vw; height: 100vh; position: relative; }
+
+    .slide {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      justify-content: center; align-items: flex-start;
+      padding: 56px 80px 80px;
+      opacity: 0; pointer-events: none;
+      transition: opacity .35s ease;
+      z-index: 1;
+    }
+
+    .slide.active { opacity: 1; pointer-events: all; }
+
+    /* Nav */
+    #nav {
+      position: fixed; bottom: 28px; left: 50%;
+      transform: translateX(-50%);
+      display: flex; align-items: center; gap: 14px;
+      z-index: 200;
+    }
+
+    #nav button {
+      background: var(--panel); border: 1px solid var(--line);
+      color: var(--white); padding: 7px 18px; border-radius: 6px;
+      cursor: pointer; font-size: 13px;
+      transition: border-color .2s, color .2s;
+    }
+    #nav button:hover { border-color: var(--green); color: var(--green); }
+
+    #nav .ctr {
+      font-size: 12px; color: var(--dim);
+      font-family: monospace; min-width: 52px; text-align: center;
+    }
+
+    /* Footer */
+    #foot {
+      position: fixed; bottom: 30px; left: 80px;
+      font-size: 10px; color: var(--dim); font-family: monospace;
+      z-index: 200;
+    }
+
+    /* ── Typography ── */
+    .tag {
+      font-size: 10px; font-family: monospace;
+      color: var(--green); letter-spacing: 2.5px;
+      text-transform: uppercase; margin-bottom: 14px;
+    }
+
+    h1 { font-size: 60px; font-weight: 800; line-height: 1.05; }
+    h1 em { font-style: normal; color: var(--green); }
+    h2 { font-size: 30px; font-weight: 700; }
+    h3 { font-size: 17px; font-weight: 600; color: var(--white); }
+
+    .rule { width: 40px; height: 2px; background: var(--green); margin: 10px 0 22px; }
+
+    p { color: var(--muted); font-size: 15px; line-height: 1.7; }
+
+    /* ── Layout ── */
+    .cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 36px; width: 100%; align-items: start; }
+    .cols3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 22px; width: 100%; align-items: start; }
+    .cols4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 18px; width: 100%; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--panel); border: 1px solid var(--line);
+      border-radius: 10px; padding: 22px;
+    }
+    .card.hi { border-color: var(--green); }
+
+    .stat {
+      background: var(--panel); border: 1px solid var(--line);
+      border-radius: 10px; padding: 26px 18px; text-align: center;
+    }
+    .stat.hi { border-color: var(--green); }
+    .stat .v { font-size: 42px; font-weight: 800; color: var(--green); font-family: monospace; }
+    .stat .l { font-size: 11px; color: var(--muted); margin-top: 5px; line-height: 1.4; }
+
+    /* ── List ── */
+    ul.li { list-style: none; }
+    ul.li li {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 8px 0; border-bottom: 1px solid var(--dim2);
+      color: var(--muted); font-size: 14px;
+    }
+    ul.li li:last-child { border-bottom: none; }
+    ul.li li::before { content: '▹'; color: var(--green); flex-shrink: 0; margin-top: 1px; }
+
+    /* ── Badges ── */
+    .badges { display: flex; flex-wrap: wrap; gap: 10px; }
+    .badge {
+      display: inline-flex; align-items: center;
+      background: var(--panel); border: 1px solid var(--line);
+      border-radius: 20px; padding: 4px 14px;
+      font-size: 12px; font-family: monospace; color: var(--muted);
+    }
+    .badge.hi { border-color: var(--green); color: var(--green); }
+
+    /* ── Bar chart ── */
+    .bars { width: 100%; }
+    .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 7px; }
+    .bar-lbl { font-size: 11px; color: var(--muted); font-family: monospace; width: 172px; flex-shrink: 0; text-align: right; }
+    .bar-track { flex: 1; height: 16px; background: var(--dim2); border-radius: 3px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 3px; display: flex; align-items: center; justify-content: flex-end; padding-right: 6px; }
+    .bar-fill span { font-size: 9px; font-weight: 700; font-family: monospace; color: #0a0b0e; }
+    .bar-acc { font-size: 10px; color: var(--dim); font-family: monospace; width: 56px; flex-shrink: 0; }
+
+    /* ── Compare bars ── */
+    .cmp-row { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+    .cmp-lbl { width: 130px; font-size: 13px; font-family: monospace; color: var(--muted); flex-shrink: 0; }
+    .cmp-lbl.hi { color: var(--green); font-weight: 700; }
+    .cmp-track { flex: 1; height: 26px; background: var(--dim2); border-radius: 4px; overflow: hidden; }
+    .cmp-fill { height: 100%; border-radius: 4px; display: flex; align-items: center; padding: 0 10px; }
+    .cmp-fill span { font-size: 12px; font-weight: 700; font-family: monospace; }
+
+    /* ── Code ── */
+    .code {
+      background: var(--panel); border: 1px solid var(--line);
+      border-radius: 8px; padding: 16px 20px;
+      font-family: monospace; font-size: 13px; color: var(--muted);
+      line-height: 1.9;
+    }
+    .code .kw { color: var(--green); }
+    .code .st { color: #fbbf24; }
+    .code .cm { color: var(--dim); }
+
+    /* ── Table ── */
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th {
+      text-align: left; padding: 9px 14px;
+      border-bottom: 1px solid var(--line);
+      color: var(--dim); font-family: monospace;
+      font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
+    }
+    td { padding: 9px 14px; border-bottom: 1px solid var(--dim2); font-family: monospace; color: var(--muted); }
+    td.g { color: var(--green); font-weight: 700; }
+    td.w { color: var(--white); }
+    td.r { color: var(--red); }
+
+    /* ── Pipeline steps ── */
+    .steps { display: flex; flex-direction: column; gap: 10px; }
+    .step { display: flex; align-items: center; gap: 12px; }
+    .step-n {
+      width: 26px; height: 26px; border-radius: 50%;
+      background: var(--green); display: flex; align-items: center;
+      justify-content: center; font-size: 12px; font-weight: 700;
+      color: #0a0b0e; flex-shrink: 0;
+    }
+    .step-t { font-size: 13px; color: var(--muted); }
+
+    /* ── Scroll ── */
+    .scr { width: 100%; overflow-y: auto; max-height: calc(100vh - 210px); padding-right: 6px; }
+    .scr::-webkit-scrollbar { width: 3px; }
+    .scr::-webkit-scrollbar-thumb { background: var(--line); border-radius: 2px; }
+
+    /* ── Video ── */
+    video { width: 100%; border-radius: 8px; border: 1px solid var(--line); display: block; }
+
+    /* ── Cover specific ── */
+    .cover-wrap { max-width: 820px; width: 100%; }
+  </style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<div class="deck">
+
+  <!-- ════════════════════════════════════════
+       SLIDE 1 · Capa
+  ════════════════════════════════════════ -->
+  <div class="slide active">
+    <div class="cover-wrap">
+      <div class="tag">Apresentação Técnica · CEIA-UFG · Junho 2026</div>
+      <h1><em>dNATY</em></h1>
+      <p style="font-family:monospace; font-size:13px; color:var(--dim); margin: 6px 0 18px;">
+        Dynamic Neuro-Adaptive sYstem with evoluTionarY Learning
+      </p>
+      <p style="font-size:16px; max-width:600px; margin-bottom:32px;">
+        Compressão evolutiva de redes neurais para sistemas embarcados e IoT —
+        sem GPU, sem retreinamento, rodando em qualquer CPU.
+      </p>
+      <div class="badges" style="margin-bottom: 36px;">
+        <span class="badge hi">v2.0.0 · open-source · BSL-1.1</span>
+        <span class="badge">pip install dnaty</span>
+        <span class="badge">github.com/pedrovergueiro/dNaty</span>
+      </div>
+      <div style="display:flex; align-items:center; gap: 20px;">
+        <div style="width:42px; height:42px; border-radius:50%; background:var(--green); display:flex; align-items:center; justify-content:center; font-size:17px; font-weight:800; color:#0a0b0e; flex-shrink:0;">PV</div>
+        <div>
+          <div style="font-size:15px; font-weight:600; color:var(--white);">Pedro Vergueiro</div>
+          <div style="font-size:12px; color:var(--muted); font-family:monospace;">Vergueiro Tech · pedrol.vergueiro@gmail.com</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       SLIDE 2 · O Problema
+  ════════════════════════════════════════ -->
+  <div class="slide">
+    <div class="tag">01 · Problema</div>
+    <h2>Edge ML ainda é um gargalo não resolvido</h2>
+    <div class="rule"></div>
+    <div class="cols2" style="gap:48px;">
+      <div>
+        <p style="margin-bottom:22px;">
+          Câmeras industriais, drones, robôs e sensores IoT operam com CPU genérica —
+          sem GPU, sem NPU, sem acesso a cloud. Os modelos treinados para esses cenários
+          são grandes demais para inferência em tempo real nesses dispositivos.
+        </p>
+        <ul class="li">
+          <li>TensorRT exige hardware NVIDIA proprietário</li>
+          <li>TFLite requer recompilação e retraining completo</li>
+          <li>OFA / MnasNet demandam dias de busca em GPU</li>
+          <li>Pruning manual não generaliza nem escala</li>
+          <li>Nenhuma solução atual: CPU genérica + sem retreinamento</li>
+        </ul>
+      </div>
+      <div>
+        <div class="card" style="margin-bottom:14px;">
+          <div style="font-size:11px; color:var(--dim); font-family:monospace; margin-bottom:10px;">CENÁRIOS ALVO</div>
+          <ul class="li">
+            <li>Câmeras industriais — detecção de falhas e anomalias</li>
+            <li>Drones autônomos — classificação embarcada</li>
+            <li>Robótica — inferência em tempo real sem cloud</li>
+            <li>Sensores IoT — intrusão de rede, saúde, manutenção</li>
+          </ul>
+        </div>
+        <div class="card hi">
+          <div style="font-size:11px; color:var(--green); font-family:monospace; margin-bottom:8px;">O GAP</div>
+          <p style="font-size:14px;">
+            Nenhuma ferramenta existente comprime redes para produção em CPU genérica
+            sem exigir retreinamento, hardware especial ou dias de computação.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       SLIDE 3 · Abordagem Técnica
+  ════════════════════════════════════════ -->
+  <div class="slide">
+    <div class="tag">02 · Abordagem Técnica</div>
+    <h2>Evolutionary NAS + Otimização Multiobjetivo Pareto</h2>
+    <div class="rule"></div>
+    <div class="cols2" style="gap:48px;">
+      <div>
+        <ul class="li" style="margin-bottom:22px;">
+          <li><strong style="color:var(--white);">NSGA-II</strong> — busca evolutiva que otimiza acurácia e FLOPs simultaneamente, sem pesos manuais</li>
+          <li><strong style="color:var(--white);">Pareto front</strong> — seleciona o melhor tradeoff compressão × qualidade automaticamente</li>
+          <li><strong style="color:var(--white);">Mutações estruturais</strong> — adiciona, remove e substitui camadas durante a evolução</li>
+          <li><strong style="color:var(--white);">Zero retreinamento</strong> — parte do modelo já treinado em produção</li>
+          <li><strong style="color:var(--white);">Aprendizado contínuo</strong> — replay balanceado integrado previne catastrophic forgetting</li>
+        </ul>
+        <div class="code">
+<span class="cm"># API de uma linha</span><br>
+<span class="kw">from</span> dnaty <span class="kw">import</span> compress<br><br>
+result = compress(<br>
+&nbsp;&nbsp;model&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= my_pytorch_model,<br>
+&nbsp;&nbsp;X_train&nbsp;&nbsp;&nbsp; = X,<br>
+&nbsp;&nbsp;y_train&nbsp;&nbsp;&nbsp; = y,<br>
+&nbsp;&nbsp;target_flops = <span class="st">0.5</span>&nbsp;&nbsp;<span class="cm"># 50% redução</span><br>
+)<br>
+<span class="kw">print</span>(result.summary())
+        </div>
+      </div>
+      <div>
+        <div class="card" style="margin-bottom:14px;">
+          <div style="font-size:11px; color:var(--dim); font-family:monospace; margin-bottom:14px;">PIPELINE DE COMPRESSÃO</div>
+          <div class="steps">
+            <div class="step"><div class="step-n">1</div><div class="step-t">Modelo PyTorch existente → população inicial de variantes</div></div>
+            <div class="step"><div class="step-n">2</div><div class="step-t">NSGA-II evolui arquiteturas por N gerações (default 30)</div></div>
+            <div class="step"><div class="step-n">3</div><div class="step-t">Seleção da arquitetura Pareto-eficiente (acurácia × FLOPs)</div></div>
+            <div class="step"><div class="step-n">4</div><div class="step-t">Exportação: PyTorch state_dict ou ONNX</div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div style="font-size:11px; color:var(--dim); font-family:monospace; margin-bottom:6px;">REQUISITOS MÍNIMOS</div>
+          <p style="font-size:13px;">Python 3.10+ · PyTorch 2.0+ · CPU only · qualquer modelo MLP/tabular</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       SLIDE 4 · Demo (vídeo)
+  ════════════════════════════════════════ -->
+  <div class="slide" style="align-items:center;">
+    <div style="width:100%; max-width:880px;">
+      <div class="tag" style="align-self:flex-start; margin-bottom:12px;">03 · Demo</div>
+      <h2 style="margin-bottom:6px;">dNATY em ação — compressão ao vivo em CPU</h2>
+      <div class="rule"></div>
+      <video controls muted loop playsinline>
+        <source src="./frontend/public/demo_terminal.mp4" type="video/mp4">
+      </video>
+      <p style="margin-top:12px; font-size:11px; font-family:monospace; text-align:center;">
+        Compressão evolutiva rodando em CPU padrão · sem GPU · sem cloud · resultado em minutos
+      </p>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       SLIDE 5 · Benchmarks FLOPs (11 datasets)
+  ════════════════════════════════════════ -->
+  <div class="slide">
+    <div class="tag">04 · Resultados Experimentais</div>
+    <h2>Redução de FLOPs — 11 datasets reais</h2>
+    <div class="rule"></div>
+    <div class="scr">
+      <div class="bars" style="margin-bottom:14px;">
+        <div class="bar-row"><span class="bar-lbl">Electrical Fault</span>      <div class="bar-track"><div class="bar-fill" style="width:83%;  background:var(--green);" ><span>-83%</span></div></div><span class="bar-acc">99.25%</span></div>
+        <div class="bar-row"><span class="bar-lbl">Dry Bean Quality</span>      <div class="bar-track"><div class="bar-fill" style="width:83.4%;background:var(--green);" ><span>-83%</span></div></div><span class="bar-acc">92.43%</span></div>
+        <div class="bar-row"><span class="bar-lbl">Predictive Maint.</span>     <div class="bar-track"><div class="bar-fill" style="width:83.1%;background:var(--green);" ><span>-83%</span></div></div><span class="bar-acc">96.70%</span></div>
+        <div class="bar-row"><span class="bar-lbl">Stellar Class.</span>        <div class="bar-track"><div class="bar-fill" style="width:81.8%;background:var(--green);" ><span>-82%</span></div></div><span class="bar-acc">85.13%</span></div>
+        <div class="bar-row"><span class="bar-lbl">Breast Cancer UCI</span>     <div class="bar-track"><div class="bar-fill" style="width:72.6%;background:var(--green);" ><span>-73%</span></div></div><span class="bar-acc">99.56%</span></div>
+        <div class="bar-row"><span class="bar-lbl">Credit Fraud</span>          <div class="bar-track"><div class="bar-fill" style="width:64%;  background:var(--green2);"><span>-64%</span></div></div><span class="bar-acc">99.96%</span></div>
+        <div class="bar-row"><span class="bar-lbl">Network Intrusion</span>     <div class="bar-track"><div class="bar-fill" style="width:56.3%;background:var(--green2);"><span>-56%</span></div></div><span class="bar-acc">99.46%</span></div>
+        <div class="bar-row"><span class="bar-lbl">Adult Income</span>          <div class="bar-track"><div class="bar-fill" style="width:47.3%;background:var(--green2);"><span>-47%</span></div></div><span class="bar-acc">83.60%</span></div>
+        <div class="bar-row"><span class="bar-lbl">HAR Sensors</span>           <div class="bar-track"><div class="bar-fill" style="width:46.8%;background:var(--green2);"><span>-47%</span></div></div><span class="bar-acc">99.17%</span></div>
+        <div class="bar-row"><span class="bar-lbl">MNIST 70K</span>             <div class="bar-track"><div class="bar-fill" style="width:41.8%;background:var(--green3);"><span>-42%</span></div></div><span class="bar-acc">98.68%</span></div>
+        <div class="bar-row"><span class="bar-lbl">Covertype Forest</span>      <div class="bar-track"><div class="bar-fill" style="width:36%;  background:var(--green3);"><span>-36%</span></div></div><span class="bar-acc">90.07%</span></div>
+      </div>
+      <p style="font-size:10px; font-family:monospace; color:var(--dim);">
+        CPU only · 30 gerações · validação hold-out 20% · PyTorch 2.0 · acurácia mantida ou melhorada em todos os casos
+      </p>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       SLIDE 6 · NAS Convergência
+  ════════════════════════════════════════ -->
+  <div class="slide">
+    <div class="tag">05 · Eficiência de Busca</div>
+    <h2>Busca Evolutiva vs. Random NAS</h2>
+    <div class="rule"></div>
+    <div class="cols2" style="gap:48px;">
+      <div>
+        <div class="cols2" style="gap:14px; margin-bottom:18px;">
+          <div class="stat hi">
+            <div class="v">83%</div>
+            <div class="l">redução de FLOPs<br>(pico — Dry Bean Quality)</div>
+          </div>
+          <div class="stat">
+            <div class="v" style="font-size:32px;">36–83%</div>
+            <div class="l">range em 11 datasets<br>reais benchmarkados</div>
+          </div>
+        </div>
+        <p style="margin-bottom:16px; font-size:14px;">
+          O valor varia por dataset — modelos com alta redundância paramétrica
+          (ex: Epileptic Seizure, 566K params → 231K) atingem maiores reduções.
+          A compressão é guiada pela pressão de FLOPs no critério Pareto, não por um alvo fixo.
+        </p>
+        <div class="card">
+          <div style="font-size:11px; color:var(--dim); font-family:monospace; margin-bottom:6px;">TODOS OS CASOS</div>
+          <p style="font-size:13px;">Acurácia de validação mantida ou melhorada em todos os 11 datasets.</p>
+        </div>
+      </div>
+      <div>
+        <div class="card" style="margin-bottom:14px;">
+          <div style="font-size:11px; color:var(--dim); font-family:monospace; margin-bottom:14px;">COMPARAÇÃO NAS · MNIST · 30 GENS · POP=15 · CPU</div>
+          <table>
+            <thead>
+              <tr><th>Método</th><th>FLOPs red.</th><th>Acurácia</th><th>Tempo</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="w" style="font-weight:700;">dNATY</td><td class="g">-36.0%</td><td class="w">97.70%</td><td class="w">650s</td></tr>
+              <tr><td>Random NAS</td><td>-41.1%</td><td>97.75%</td><td>593s</td></tr>
+            </tbody>
+          </table>
+          <p style="font-size:11px; font-family:monospace; color:var(--dim); margin-top:10px;">
+            * MNIST é o dataset menos comprimível do benchmark (baixa redundância).
+            O 36% aqui é o piso — não o resultado típico.
+          </p>
+        </div>
+        <div class="card hi">
+          <div style="font-size:11px; color:var(--green); font-family:monospace; margin-bottom:8px;">NOTA</div>
+          <p style="font-size:13px;">
+            dNATY maximiza eficiência Pareto (acurácia × FLOPs), não mínimo absoluto.
+            Random NAS produziu FLOPs ligeiramente menores neste run — sem garantia de acurácia.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       SLIDE 7 · Continual Learning
+  ════════════════════════════════════════ -->
+  <div class="slide">
+    <div class="tag">06 · Aprendizado Contínuo</div>
+    <h2>Backward Transfer — resistência ao esquecimento catastrófico</h2>
+    <div class="rule"></div>
+    <div class="cols2" style="gap:56px; align-items:center;">
+      <div>
+        <p style="margin-bottom:22px;">
+          Em produção real, modelos recebem novos dados continuamente.
+          O <strong style="color:var(--white);">Backward Transfer (BWT)</strong> mede quanto o modelo
+          "esquece" tarefas anteriores ao aprender novas.
+          Quanto mais próximo de zero, menor o esquecimento.
+        </p>
+        <div class="cmp-row">
+          <div class="cmp-lbl">MLP (sem CL)</div>
+          <div class="cmp-track"><div class="cmp-fill" style="width:100%; background:var(--dim2);"><span style="color:var(--muted);">BWT = -0.998</span></div></div>
+        </div>
+        <div class="cmp-row">
+          <div class="cmp-lbl">EWC</div>
+          <div class="cmp-track"><div class="cmp-fill" style="width:99.8%; background:#374151;"><span style="color:#9ca3af;">BWT = -0.998</span></div></div>
+        </div>
+        <div class="cmp-row">
+          <div class="cmp-lbl hi">dNATY</div>
+          <div class="cmp-track"><div class="cmp-fill" style="width:20.4%; background:var(--green);"><span style="color:#0a0b0e;">-0.204</span></div></div>
+        </div>
+        <div style="text-align:right; font-size:10px; color:var(--dim); font-family:monospace; margin-top:4px; margin-bottom:16px;">← ideal: 0.000</div>
+        <p style="font-size:11px; font-family:monospace; color:var(--dim);">
+          Split-MNIST · 5 tarefas sequenciais · 3 seeds · replay balanceado size=500
+        </p>
+      </div>
+      <div>
+        <div class="stat hi" style="padding:44px 28px; margin-bottom:18px;">
+          <div class="v">4.9×</div>
+          <div class="l" style="font-size:14px;">menos esquecimento que EWC<br>em aprendizado contínuo</div>
+        </div>
+        <div class="card">
+          <div style="font-size:11px; color:var(--dim); font-family:monospace; margin-bottom:6px;">RELEVÂNCIA PARA IoT</div>
+          <p style="font-size:13px;">
+            Dispositivos de borda precisam aprender com novos dados sem reset completo.
+            dNATY mantém conhecimento anterior enquanto incorpora novas tarefas.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       SLIDE 8 · Comparativo de Ferramentas
+  ════════════════════════════════════════ -->
+  <div class="slide">
+    <div class="tag">07 · Posicionamento</div>
+    <h2>Onde o dNATY se encaixa no ecossistema</h2>
+    <div class="rule"></div>
+    <div style="width:100%; overflow-x:auto; margin-bottom:18px;">
+      <table>
+        <thead>
+          <tr>
+            <th>Ferramenta</th>
+            <th>GPU obrigatória</th>
+            <th>Retreinamento</th>
+            <th>CPU genérica</th>
+            <th>API simplificada</th>
+            <th>CL integrado</th>
+            <th>Open-source</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="w" style="font-weight:700; color:var(--green);">dNATY</td>
+            <td class="g">Não</td>
+            <td class="g">Não</td>
+            <td class="g">Sim</td>
+            <td class="g">Sim</td>
+            <td class="g">Sim</td>
+            <td class="g">Sim (BSL-1.1)</td>
+          </tr>
+          <tr>
+            <td class="w">TensorRT</td>
+            <td class="r">Sim (NVIDIA)</td>
+            <td class="r">Sim</td>
+            <td class="r">Não</td>
+            <td>Parcial</td>
+            <td class="r">Não</td>
+            <td class="r">Não</td>
+          </tr>
+          <tr>
+            <td class="w">TFLite</td>
+            <td>Opcional</td>
+            <td class="r">Sim</td>
+            <td>Parcial</td>
+            <td class="r">Não</td>
+            <td class="r">Não</td>
+            <td>Sim</td>
+          </tr>
+          <tr>
+            <td class="w">OFA / MnasNet</td>
+            <td class="r">Sim</td>
+            <td class="r">Sim (dias)</td>
+            <td class="r">Não</td>
+            <td class="r">Não</td>
+            <td class="r">Não</td>
+            <td>Parcial</td>
+          </tr>
+          <tr>
+            <td class="w">Pruning manual</td>
+            <td>Não</td>
+            <td class="r">Sim</td>
+            <td>Sim</td>
+            <td class="r">Não</td>
+            <td class="r">Não</td>
+            <td>N/A</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card" style="max-width:680px;">
+      <div style="font-size:11px; color:var(--dim); font-family:monospace; margin-bottom:6px;">ESCOPO ATUAL</div>
+      <p style="font-size:13px;">
+        dNATY v2.0 é focado em MLP / redes tabulares e visão pequena (redes convolucionais simples).
+        Suporte a CNNs profundas (ResNet, EfficientNet) está em desenvolvimento no roadmap v2.x.
+      </p>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       SLIDE 9 · Proposta de Colaboração
+  ════════════════════════════════════════ -->
+  <div class="slide">
+    <div class="tag">08 · Proposta</div>
+    <h2>Formas de colaboração com o CEIA</h2>
+    <div class="rule"></div>
+    <div class="cols3" style="align-items:stretch; margin-bottom:22px;">
+      <div class="card hi" style="display:flex; flex-direction:column; gap:14px;">
+        <div>
+          <div style="font-size:10px; color:var(--green); font-family:monospace; margin-bottom:8px;">OPÇÃO A</div>
+          <h3>Teste de campo</h3>
+        </div>
+        <p style="font-size:14px;">
+          Aplicar o dNATY em modelos de um projeto real do CEIA — câmeras, sensores ou drones —
+          e medir ganho de latência em hardware real do grupo.
+        </p>
+        <ul class="li" style="margin-top:auto;">
+          <li style="font-size:13px;">Hardware IoT disponível no CEIA</li>
+          <li style="font-size:13px;">Modelo já treinado pelo grupo</li>
+          <li style="font-size:13px;">Resultado mensurável em dias</li>
+        </ul>
+      </div>
+      <div class="card" style="display:flex; flex-direction:column; gap:14px;">
+        <div>
+          <div style="font-size:10px; color:var(--dim); font-family:monospace; margin-bottom:8px;">OPÇÃO B</div>
+          <h3>Parceria de pesquisa</h3>
+        </div>
+        <p style="font-size:14px;">
+          Co-autoria em publicação sobre compressão evolutiva para edge ML —
+          contribuição técnica do dNATY + expertise do CEIA em visão embarcada e robótica.
+        </p>
+        <ul class="li" style="margin-top:auto;">
+          <li style="font-size:13px;">Código e benchmarks reproduzíveis disponíveis</li>
+          <li style="font-size:13px;">Extensão científica aberta (NAS, CNN, CL)</li>
+          <li style="font-size:13px;">Venue: BRACIS, ENIAC, IJCNN, ICML</li>
+        </ul>
+      </div>
+      <div class="card" style="display:flex; flex-direction:column; gap:14px;">
+        <div>
+          <div style="font-size:10px; color:var(--dim); font-family:monospace; margin-bottom:8px;">OPÇÃO C</div>
+          <h3>Troca técnica</h3>
+        </div>
+        <p style="font-size:14px;">
+          Sessão técnica de 20–30 min com o grupo de pesquisa — apresentar a abordagem,
+          discutir limitações e oportunidades de extensão sem compromisso formal.
+        </p>
+        <ul class="li" style="margin-top:auto;">
+          <li style="font-size:13px;">Sem compromisso formal</li>
+          <li style="font-size:13px;">Feedback especializado do grupo</li>
+          <li style="font-size:13px;">Ponto de partida natural para A ou B</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       SLIDE 10 · Próximos passos / Contato
+  ════════════════════════════════════════ -->
+  <div class="slide">
+    <div class="tag">09 · Contato</div>
+    <h2>Próximos passos</h2>
+    <div class="rule"></div>
+    <div class="cols2" style="gap:60px; align-items:center;">
+      <div>
+        <ul class="li" style="margin-bottom:26px;">
+          <li>Instalar e explorar: <code style="background:var(--panel); padding:2px 8px; border-radius:4px; font-size:12px; font-family:monospace;">pip install dnaty</code></li>
+          <li>Código, benchmarks e docs no GitHub (link abaixo)</li>
+          <li>Suite de 72 testes automatizados garante reprodutibilidade</li>
+          <li>Call de 20 min para alinhar escopo e próximos passos</li>
+        </ul>
+        <div class="code">
+<span class="cm"># testar em 3 linhas</span><br>
+pip install dnaty<br><br>
+<span class="kw">from</span> dnaty <span class="kw">import</span> compress<br>
+result = compress(model, X, y, target_flops=<span class="st">0.5</span>)<br>
+<span class="kw">print</span>(result.summary())
+        </div>
+      </div>
+      <div>
+        <div class="card hi" style="padding:34px; margin-bottom:18px;">
+          <div style="font-size:11px; color:var(--green); font-family:monospace; margin-bottom:16px;">CONTATO</div>
+          <div style="font-size:17px; font-weight:700; color:var(--white); margin-bottom:4px;">Pedro Vergueiro</div>
+          <div style="font-size:13px; color:var(--muted); font-family:monospace; margin-bottom:18px;">Vergueiro Tech</div>
+          <div style="display:flex; flex-direction:column; gap:8px; font-family:monospace; font-size:13px;">
+            <div style="color:var(--muted);">✉ pedrol.vergueiro@gmail.com</div>
+            <div style="color:var(--green);">⌥ github.com/pedrovergueiro/dNaty</div>
+            <div style="color:var(--muted);">⚙ pip install dnaty</div>
+          </div>
+        </div>
+        <div class="card">
+          <div style="font-size:11px; color:var(--dim); font-family:monospace; margin-bottom:6px;">LICENÇA</div>
+          <p style="font-size:13px;">
+            BSL-1.1 — uso livre para pesquisa acadêmica e projetos não-comerciais.
+            Produção comercial requer licença separada.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /deck -->
+
+<!-- Navigation -->
+<div id="nav">
+  <button onclick="go(cur-1)">← Anterior</button>
+  <span class="ctr" id="ctr">1 / 10</span>
+  <button onclick="go(cur+1)">Próximo →</button>
+</div>
+
+<div id="foot">dNATY v2.0.0 · Vergueiro Tech · 2026 · Apresentação CEIA-UFG</div>
+
+<script>
+  const slides = [...document.querySelectorAll('.slide')];
+  const total  = slides.length;
+  let cur = 0;
+
+  function go(n) {
+    slides[cur].classList.remove('active');
+    cur = Math.max(0, Math.min(n, total - 1));
+    slides[cur].classList.add('active');
+    document.getElementById('ctr').textContent = `${cur + 1} / ${total}`;
+    document.getElementById('progress').style.width = `${((cur + 1) / total) * 100}%`;
+  }
+
+  document.addEventListener('keydown', e => {
+    const next = ['ArrowRight', ' ', 'PageDown', 'Enter'];
+    const prev = ['ArrowLeft', 'Backspace', 'PageUp'];
+    if (next.includes(e.key)) { e.preventDefault(); go(cur + 1); }
+    if (prev.includes(e.key)) { e.preventDefault(); go(cur - 1); }
+  });
+
+  go(0);
+</script>
+</body>
+</html>
