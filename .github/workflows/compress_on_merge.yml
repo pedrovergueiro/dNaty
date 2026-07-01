@@ -1,0 +1,125 @@
+# dNATY Compress-on-Merge Action
+#
+# Runs dNATY compression on your model whenever a PR is merged (or on push to main).
+# Posts a compression report as a PR comment with FLOPs reduction and latency delta.
+#
+# SETUP:
+#   1. Create .dnaty/compress_check.py in your repo (see template below).
+#   2. The script must print a JSON object to stdout with at minimum:
+#        {"flops_reduction_pct": 46.5, "accuracy": 0.9812, "arch": [64, 32], ...}
+#   3. Add DNATY_COMPRESS_SCRIPT secret if your script path is non-standard.
+#
+# Template for .dnaty/compress_check.py:
+# ---------------------------------------------------------------------------
+# import json, torch, torch.nn as nn
+# from dnaty import compress
+# from dnaty.experiments.fast_dataset import FastDataset
+#
+# model = nn.Sequential(nn.Linear(784, 256), nn.ReLU(), nn.Linear(256, 10))
+# ds = FastDataset("MNIST", device="cpu", train_subset=5000)
+# result = compress(model, ds, target_flops=0.5, n_generations=10, n_pop=8, verbose=False)
+# print(json.dumps({
+#     "flops_reduction_pct": round(result.flops_reduction_pct, 1),
+#     "params_reduction_pct": round(result.params_reduction_pct, 1),
+#     "accuracy": round(result.accuracy, 4),
+#     "arch": result.arch,
+#     "original_flops": result.original_flops,
+#     "compressed_flops": result.compressed_flops,
+#     "summary": result.summary(),
+# }))
+# ---------------------------------------------------------------------------
+
+name: dNATY Compress Check
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  compress-check:
+    name: Run dNATY compression check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dNATY
+        run: |
+          pip install --upgrade pip
+          pip install dnaty
+
+      - name: Install project dependencies (if requirements.txt exists)
+        run: |
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f pyproject.toml ]; then pip install -e ".[dev]" --no-deps 2>/dev/null || true; fi
+
+      - name: Run compress check script
+        id: compress
+        env:
+          DNATY_COMPRESS_SCRIPT: ${{ secrets.DNATY_COMPRESS_SCRIPT || '.dnaty/compress_check.py' }}
+        run: |
+          SCRIPT="${DNATY_COMPRESS_SCRIPT:-.dnaty/compress_check.py}"
+          if [ ! -f "$SCRIPT" ]; then
+            echo "No compress check script found at $SCRIPT — skipping."
+            echo "result={\"skipped\": true}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Running dNATY compress check: $SCRIPT"
+          OUTPUT=$(python "$SCRIPT" 2>/dev/null | tail -n 1)
+          echo "result=$OUTPUT" >> "$GITHUB_OUTPUT"
+          echo "Raw output: $OUTPUT"
+
+      - name: Post PR comment
+        if: github.event_name == 'pull_request' && steps.compress.outputs.result != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const raw = `${{ steps.compress.outputs.result }}`;
+            let body;
+
+            try {
+              const r = JSON.parse(raw);
+              if (r.skipped) {
+                body = `### dNATY Compress Check\n\n⚠️ No \`.dnaty/compress_check.py\` found — skipping compression check.\n\nSee [setup instructions](https://github.com/pedrovergueiroo/dNATY#compress-on-merge) to enable it.`;
+              } else {
+                const flopsSign = r.flops_reduction_pct > 0 ? "↓" : "↑";
+                const paramsSign = r.params_reduction_pct > 0 ? "↓" : "↑";
+                const status = r.flops_reduction_pct > 5 ? "✅" : r.flops_reduction_pct > 0 ? "🟡" : "🔴";
+                body = `### dNATY Compress Check ${status}
+
+| Metric | Value |
+|--------|-------|
+| FLOPs | ${flopsSign} ${Math.abs(r.flops_reduction_pct).toFixed(1)}% (${(r.original_flops/1e6).toFixed(2)}M → ${(r.compressed_flops/1e6).toFixed(2)}M) |
+| Params | ${paramsSign} ${Math.abs(r.params_reduction_pct || 0).toFixed(1)}% |
+| Accuracy | ${r.accuracy} |
+| Architecture | \`${JSON.stringify(r.arch)}\` |
+
+\`\`\`
+${r.summary || ""}
+\`\`\`
+
+<sub>Powered by [dNATY](https://github.com/pedrovergueiroo/dNATY) — Evolutionary NAS for edge deployment</sub>`;
+              }
+            } catch (e) {
+              body = `### dNATY Compress Check\n\n⚠️ Could not parse compression output:\n\`\`\`\n${raw}\n\`\`\``;
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            });
