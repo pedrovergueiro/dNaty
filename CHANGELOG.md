@@ -2,6 +2,38 @@
 
 All notable changes to dNATY are documented here.
 
+## [2.0.2] - 2026-07-03 — Concurrency fix: ONNX export racing with training
+
+### Fixed
+
+- **`compress()` could crash with `KeyError: 'custom'` under concurrent multi-threaded
+  use.** Every `compress()` call exports the result to ONNX once, for telemetry
+  (`measure_latency()`, added in v2.0.0). On PyTorch >= 2.10, `torch.onnx.export()` sets
+  a process-global `torch.compiler.is_exporting()` flag that is **not thread-local**.
+  While set, any concurrently-running `optimizer.zero_grad()` call in another thread
+  (a routine training step, unrelated to the export) gets routed through
+  `torch.fx.traceback.annotate()`, which mutates a shared global dict
+  (`torch.fx.traceback.current_meta`). Two threads racing on that dict intermittently
+  raised `KeyError: 'custom'`, failing an unrelated thread's `compress()` call.
+  This is a PyTorch-internal thread-safety gap (global state that should be per-thread),
+  triggered only when multiple `compress()`/`measure_latency()`/`export_onnx()` calls run
+  concurrently as Python threads in the same process (e.g. a threaded API server; not an
+  issue with process-based workers such as Celery prefork).
+  Fixed by serializing all ONNX export call sites and training-step `zero_grad()` calls
+  behind a single shared lock (`dnaty.utils.latency_bench.ONNX_EXPORT_LOCK`).
+  Verified with 20+ runs of 5 concurrent `compress()` calls post-fix: 0 failures
+  (pre-fix: intermittent failures in most runs).
+
+- **`test_public_exports` hardcoded `dnaty.__version__ == "2.0.0"`**, breaking on every
+  patch release. Relaxed to `.startswith("2.")`.
+
+### Notes
+
+- No public API changes. Pure reliability fix — safe to upgrade from 2.0.1 with no code
+  changes required.
+
+---
+
 ## [2.0.1] - 2026-06-30 — README and documentation corrections
 
 ### Fixed

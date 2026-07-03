@@ -336,7 +336,7 @@ def test_public_exports():
     assert hasattr(dnaty, "latency_scale")
     assert hasattr(dnaty, "estimate_latency")
     assert hasattr(dnaty, "LatencyPredictor")
-    assert dnaty.__version__ == "2.0.0"
+    assert dnaty.__version__.startswith("2.")
     assert hasattr(dnaty, "QuantAwareEvolver")
     assert hasattr(dnaty, "apply_nm_sparsity")
     assert hasattr(dnaty, "sparsity_stats")

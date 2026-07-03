@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from dnaty.core.individual import Individual
+from dnaty.utils.latency_bench import ONNX_EXPORT_LOCK
 
 
 def local_train(
@@ -98,7 +99,12 @@ def local_train(
                     perm = torch.randperm(xb.size(0), device=xb.device)
                     xb = lam * xb + (1.0 - lam) * xb[perm]
                     yb_b = yb[perm]
-            optimizer.zero_grad(set_to_none=True)
+            # optimizer.zero_grad() is dynamo-instrumented in torch >= 2.10 and reads a
+            # process-global "is exporting" flag; sharing ONNX_EXPORT_LOCK with the export
+            # call sites prevents it from racing a concurrent torch.onnx.export() in another
+            # thread (see dnaty/utils/latency_bench.py).
+            with ONNX_EXPORT_LOCK:
+                optimizer.zero_grad(set_to_none=True)
             with torch.autocast(device_type=device_type, enabled=use_amp):
                 out = model(xb)
                 if use_mixup:

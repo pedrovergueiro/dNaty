@@ -9,6 +9,7 @@ Returns p50/p95/fps for a given input shape.
 from __future__ import annotations
 
 import io
+import threading
 import time
 import warnings
 from typing import Sequence
@@ -16,6 +17,13 @@ from typing import Sequence
 import numpy as np
 import torch
 import torch.nn as nn
+
+# torch.onnx.export() flips a process-global "is exporting" flag (torch.compiler.is_exporting())
+# that is not thread-local. While it is set, unrelated concurrent optimizer.zero_grad() calls in
+# other threads are routed through torch.fx.traceback.annotate(), which mutates a shared global
+# dict and races -- raising KeyError('custom') in a completely unrelated thread. Serializing all
+# ONNX exports process-wide avoids the overlap. See dnaty/result.py for the other export site.
+ONNX_EXPORT_LOCK = threading.Lock()
 
 
 def measure_latency(
@@ -52,15 +60,16 @@ def measure_latency(
     buf = io.BytesIO()
     with warnings.catch_warnings(), contextlib.redirect_stdout(io.StringIO()):
         warnings.simplefilter("ignore")
-        torch.onnx.export(
-            model,
-            dummy,
-            buf,
-            opset_version=18,
-            input_names=["input"],
-            output_names=["output"],
-            dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}},
-        )
+        with ONNX_EXPORT_LOCK:
+            torch.onnx.export(
+                model,
+                dummy,
+                buf,
+                opset_version=18,
+                input_names=["input"],
+                output_names=["output"],
+                dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}},
+            )
     buf.seek(0)
 
     opts = ort.SessionOptions()

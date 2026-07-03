@@ -205,14 +205,17 @@ class CompressResult:
             opset_version=17,
             do_constant_folding=True,
         )
+        from dnaty.utils.latency_bench import ONNX_EXPORT_LOCK
         try:
             # torch >= 2.6 defaults to the dynamo exporter, which fails on
             # DynamicMLP's data-dependent skip-connection loop. Force the
             # stable TorchScript exporter.
-            torch.onnx.export(self.model, dummy, path, dynamo=False, **kwargs)
+            with ONNX_EXPORT_LOCK:
+                torch.onnx.export(self.model, dummy, path, dynamo=False, **kwargs)
         except TypeError:
             # torch < 2.5 has no `dynamo` kwarg -- TorchScript is already the default.
-            torch.onnx.export(self.model, dummy, path, **kwargs)
+            with ONNX_EXPORT_LOCK:
+                torch.onnx.export(self.model, dummy, path, **kwargs)
 
         # Embed sparsity metadata if the model has sparse weights
         try:
