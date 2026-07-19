@@ -49,7 +49,19 @@ class DynamicMLP(nn.Module):
             layers.append(ACTIVATIONS.get(act, nn.ReLU)())
         layers.append(nn.Linear(self.layer_sizes[-1], self.n_classes))
         self.net = nn.Sequential(*layers)
-        self.skip_connections: list[tuple[int, int, nn.Linear]] = []
+        # Skip connections: (src, dst, proj_idx). proj_idx=None means identity
+        # residual; otherwise it indexes skip_projs. Projections live in an
+        # nn.ModuleList so they are trained, moved by .to(device), counted by
+        # count_params(), and persisted in state_dict().
+        self.skip_connections: list[tuple[int, int, int | None]] = []
+        self.skip_projs = nn.ModuleList()
+
+    def add_skip_connection(self, src: int, dst: int, proj: "nn.Linear | None") -> None:
+        if proj is None:
+            self.skip_connections.append((src, dst, None))
+        else:
+            self.skip_projs.append(proj)
+            self.skip_connections.append((src, dst, len(self.skip_projs) - 1))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = x.view(x.size(0), -1)
@@ -64,11 +76,11 @@ class DynamicMLP(nn.Module):
             bn     = self.net[idx + 1]
             act    = self.net[idx + 2]
             out = act(bn(linear(layer_outputs[-1])))
-            for src, dst, proj in self.skip_connections:
+            for src, dst, proj_idx in self.skip_connections:
                 if dst == i + 1 and src < len(layer_outputs):
                     skip_in = layer_outputs[src]
-                    if proj is not None:
-                        skip_in = proj(skip_in)
+                    if proj_idx is not None:
+                        skip_in = self.skip_projs[proj_idx](skip_in)
                     if skip_in.shape == out.shape:
                         out = out + skip_in
             layer_outputs.append(out)
@@ -84,8 +96,9 @@ class DynamicMLP(nn.Module):
             flops += 2 * self.layer_sizes[i] * self.layer_sizes[i + 1]
         flops += 2 * self.layer_sizes[-1] * self.n_classes
         # skip connection projections (Linear layers not in layer_sizes)
-        for _src, _dst, proj in self.skip_connections:
-            if proj is not None:
+        for _src, _dst, proj_idx in self.skip_connections:
+            if proj_idx is not None:
+                proj = self.skip_projs[proj_idx]
                 flops += 2 * proj.in_features * proj.out_features
         return flops
 

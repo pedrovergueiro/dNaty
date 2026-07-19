@@ -70,10 +70,20 @@ class CompressResult:
     def save(self, path: str) -> None:
         """Persist the compressed model and all metrics to a .pt file."""
         from dnaty.core.arch import DynamicMLP
+        skip_meta = [
+            [src, dst, proj_idx]
+            for src, dst, proj_idx in getattr(self.model, "skip_connections", [])
+        ]
+        proj_dims = [
+            [p.in_features, p.out_features]
+            for p in getattr(self.model, "skip_projs", [])
+        ]
         payload = {
             "layer_sizes": list(self.model.layer_sizes) if hasattr(self.model, "layer_sizes") else [],
             "activations": list(self.model.activations) if hasattr(self.model, "activations") else [],
             "n_classes": self.model.n_classes if hasattr(self.model, "n_classes") else None,
+            "skip_connections": skip_meta,
+            "skip_proj_dims": proj_dims,
             "model_state": self.model.state_dict(),
             "original_flops": self.original_flops,
             "compressed_flops": self.compressed_flops,
@@ -390,6 +400,15 @@ def load(path: str) -> CompressResult:
     # blocks pickle-based arbitrary code execution from untrusted .pt files.
     payload = torch.load(path, map_location="cpu", weights_only=True)
     model = DynamicMLP(payload["layer_sizes"], payload["activations"], payload["n_classes"])
+    # Rebuild skip-connection structure (absent in files saved before v2.0.3)
+    # so load_state_dict finds matching skip_projs.* keys.
+    import torch.nn as _nn
+    for in_f, out_f in payload.get("skip_proj_dims", []):
+        model.skip_projs.append(_nn.Linear(in_f, out_f, bias=False))
+    model.skip_connections = [
+        (src, dst, proj_idx)
+        for src, dst, proj_idx in payload.get("skip_connections", [])
+    ]
     model.load_state_dict(payload["model_state"])
     model.eval()
     return CompressResult(

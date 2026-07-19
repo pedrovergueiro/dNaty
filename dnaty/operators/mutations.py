@@ -52,6 +52,19 @@ def _rebuild_from_sizes(ind: Individual, new_sizes: list[int], new_acts: list[st
     with torch.no_grad():
         new_cls.weight[:, :min_in].copy_(old_cls.weight[:, :min_in])
         new_cls.bias.copy_(old_cls.bias)
+    # Preserve skip connections that are still dimensionally valid after the
+    # resize; drop the rest (a skip whose endpoints changed size has no
+    # meaningful weight mapping).
+    for src, dst, proj_idx in getattr(old_model, "skip_connections", []):
+        if not (0 <= src < len(new_sizes) and 0 < dst < len(new_sizes)):
+            continue
+        if proj_idx is None:
+            if new_sizes[src] == new_sizes[dst]:
+                new_model.add_skip_connection(src, dst, None)
+        else:
+            proj = old_model.skip_projs[proj_idx]
+            if proj.in_features == new_sizes[src] and proj.out_features == new_sizes[dst]:
+                new_model.add_skip_connection(src, dst, deepcopy(proj))
     new_model = new_model.to(device)
     new_ind = Individual(new_model, deepcopy(ind.memory))
     return new_ind
@@ -112,8 +125,7 @@ def add_residual(ind: Individual) -> tuple[Individual, bool]:
         device = torch.device("cpu")
     src, dst = candidates[np.random.randint(len(candidates))]
     new_ind = ind.clone()
-    # proj=None sinaliza residual identidade puro no forward
-    new_ind.model.skip_connections.append((src, dst, None))  # proj=None signals pure identity residual in forward
+    new_ind.model.add_skip_connection(src, dst, None)  # proj=None signals pure identity residual in forward
     new_ind.last_op = "add_residual"
     return new_ind, True
 
@@ -131,12 +143,12 @@ def add_skip(ind: Individual) -> tuple[Individual, bool]:
     src = np.random.randint(0, len(sizes) - 2)
     dst = np.random.randint(src + 1, len(sizes))
     src_size = sizes[src]
-    dst_size = sizes[dst] if dst < len(sizes) else ind.model.n_classes
+    dst_size = sizes[dst]
     proj = None
     if src_size != dst_size:
         proj = nn.Linear(src_size, dst_size, bias=False).to(device)
         nn.init.orthogonal_(proj.weight)
-    new_ind.model.skip_connections.append((src, dst, proj))
+    new_ind.model.add_skip_connection(src, dst, proj)
     new_ind.last_op = "add_skip"
     return new_ind, True
 

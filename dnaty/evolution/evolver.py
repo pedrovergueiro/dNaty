@@ -163,6 +163,7 @@ class DnatyEvolver:
             if not success or not new_ind.model.is_valid():
                 new_ind = ind.clone()
                 new_ind.last_op = "no_op"
+            new_ind.parent_acc = ind.acc
             mutated.append(new_ind)
         return mutated
 
@@ -197,7 +198,10 @@ class DnatyEvolver:
         if self._proxy_ensemble is None or not score_dicts:
             return
         actual_deltas = [
-            ind.acc - (prev_accs[i] if i < len(prev_accs) else 0.0)
+            ind.acc - (
+                ind.parent_acc if ind.parent_acc is not None
+                else (prev_accs[i] if i < len(prev_accs) else 0.0)
+            )
             for i, ind in enumerate(mutated)
         ]
         self._proxy_ensemble.update(score_dicts, actual_deltas)
@@ -213,8 +217,13 @@ class DnatyEvolver:
         for i, ind in enumerate(mutated):
             if ind.last_op == "no_op":
                 continue
-            # Improvement relative to the parent (not just the global best)
-            parent_acc = prev_accs[i] if i < len(prev_accs) else prev_best_acc
+            # Improvement relative to the parent (not just the global best).
+            # parent_acc travels on the mutant itself because the mutated list
+            # may be reordered/oversampled by the proxy filter.
+            if ind.parent_acc is not None:
+                parent_acc = ind.parent_acc
+            else:
+                parent_acc = prev_accs[i] if i < len(prev_accs) else prev_best_acc
             if ind.acc > parent_acc + 1e-5:
                 exp = Experience(
                     operator=ind.last_op,
@@ -377,6 +386,7 @@ class CnnEvolver(DnatyEvolver):
             if not success or not new_ind.model.is_valid():
                 new_ind = ind.clone()
                 new_ind.last_op = "no_op"
+            new_ind.parent_acc = ind.acc
             mutated.append(new_ind)
         return mutated
 
@@ -492,7 +502,10 @@ class LatencyEvolver(DnatyEvolver):
             sizes = list(getattr(ind.model, "layer_sizes", []))
             if len(sizes) >= 2:
                 n_classes = getattr(ind.model, "n_classes", self.n_classes)
-                full_sizes = sizes + [n_classes] if sizes[-1] != n_classes else sizes
+                # layer_sizes never includes the classifier — always append it
+                # (the old `if sizes[-1] != n_classes` skipped a real layer
+                # whenever the last hidden width coincided with n_classes).
+                full_sizes = sizes + [n_classes]
                 table_ms = estimate_mlp_latency(full_sizes, device=self.target_device)
                 if table_ms > 0:
                     return table_ms
@@ -513,7 +526,10 @@ class LatencyEvolver(DnatyEvolver):
     def _predict_latency_ms(self, ind: "Individual") -> float:
         """GBM surrogate prediction × device scale."""
         sizes = getattr(ind.model, 'layer_sizes', [])
-        widths = [s for s in sizes[1:-1]] if len(sizes) > 2 else []
+        # ALL hidden widths (layer_sizes = [input, h1, ..., hN]; classifier is
+        # separate) — must match arch_features() in scripts/build_latency_dataset.py,
+        # which trains the GBM on every Linear out_features except the classifier.
+        widths = [s for s in sizes[1:]] if len(sizes) > 1 else []
         feats = {
             "n_layers": len(widths),
             "widths": widths or [128],
@@ -572,3 +588,15 @@ class LatencyEvolver(DnatyEvolver):
                 "flops": ind.count_flops(),
             })
         return sorted(front, key=lambda x: -x["accuracy"])
+
+
+class QuantLatencyEvolver(QuantAwareEvolver, LatencyEvolver):
+    """
+    INT8 fitness + latency objective — used by compress(target="latency",
+    quant_aware=True).
+
+    MRO: accuracy is evaluated on a temporarily-quantized copy
+    (QuantAwareEvolver._eval_population), while fitness cost comes from
+    measured/estimated latency (LatencyEvolver._fitness). Constructor kwargs of
+    both parents (dtype, target_device, latency_weight, ...) are accepted.
+    """

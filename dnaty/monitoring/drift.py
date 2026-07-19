@@ -103,7 +103,11 @@ class DriftDetector:
 
         psi_list, kl_list = [], []
         for i, (baseline, edges) in enumerate(zip(self._baselines, self._edges)):
-            col = arr[:, i]
+            # Clip to the baseline range so out-of-range samples land in the
+            # first/last bin instead of being silently dropped by np.histogram —
+            # otherwise a large mean shift excludes most production samples from
+            # the comparison and distorts PSI.
+            col = np.clip(arr[:, i], edges[0], edges[-1])
             hist, _ = np.histogram(col, bins=edges)
             actual = _smooth(hist, self.smoothing)
 

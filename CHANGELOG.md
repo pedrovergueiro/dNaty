@@ -2,6 +2,67 @@
 
 All notable changes to dNATY are documented here.
 
+## [2.0.3] - 2026-07-19 — Bug-hunt release: 8 correctness fixes
+
+### Fixed
+
+- **Skip connections were fundamentally broken** (most severe). `add_skip` /
+  `add_residual` stored projection `nn.Linear` layers in a plain Python list, invisible
+  to PyTorch's module system. Consequences, all fixed:
+  - Projection weights were applied in `forward()` but **never trained** (absent from
+    `model.parameters()`), and excluded from `count_params()` while included in
+    `count_flops()`.
+  - `result.save()` + `dnaty.load()` **silently dropped all skip connections** — a
+    loaded model produced different predictions than the saved one (verified
+    empirically pre-fix).
+  - `model.to("cuda")` did not move projections → device-mismatch crash on GPU.
+  - Every rebuild-based mutation (`add_neuron`, `split_layer`, …) silently discarded
+    all skips, so the search kept "learning" skips the next mutation erased.
+  Projections now live in a registered `nn.ModuleList` (`skip_projs`), skips are
+  persisted in the save payload (old files load fine — they just have no skips, same
+  as before), and rebuild mutations preserve skips whose endpoint sizes are unchanged.
+
+- **`compress(target="latency", quant_aware=True)` silently ignored `quant_aware`** —
+  it printed "INT8 fitness + latency objective" but always used a plain
+  `LatencyEvolver`. New `QuantLatencyEvolver` (INT8 accuracy evaluation + latency
+  Pareto objective) is now actually used on that path.
+
+- **Episodic-memory credit misattribution with `proxy_filter=True`.** The proxy
+  filter oversamples and reorders mutants, but memory/proxy-weight updates indexed
+  parent accuracies by list position — crediting operators against the wrong parent.
+  Parent accuracy now travels on the mutant itself (`Individual.parent_acc`).
+
+- **Reported accuracy now matches the deployed model.** Final accuracy is measured in
+  `eval()` mode (BatchNorm running stats — the semantics of the exported ONNX model)
+  instead of train-mode batch statistics, and the returned `result.model` is left in
+  `eval()` mode. New optional `compress(..., val_data=...)` evaluates NAS selection
+  and final accuracy on a held-out set instead of the training data.
+
+- **Latency predictor feature mismatch.** At search time the GBM surrogate received
+  `widths` missing the last hidden layer (`layer_sizes[1:-1]` — but `layer_sizes`
+  has no output entry), while training data (`build_latency_dataset.py`) used all
+  hidden layers. Predictions were systematically biased one layer small. Also fixed:
+  the latency lookup-table path dropped the classifier layer whenever the last hidden
+  width coincided with `n_classes`.
+
+- **Adaptive accuracy floor in `compress()` selection.** The fixed `acc_floor = 0.90`
+  disabled compression pressure entirely on tasks where 90% is unreachable; the floor
+  is now `min(0.90, best_acc − 0.02)`.
+
+- **`DriftDetector` silently dropped out-of-range samples.** Production samples
+  outside the baseline histogram range were excluded by `np.histogram`, distorting
+  PSI under strong mean shifts. Samples are now clipped into the edge bins.
+
+- **`evaluate()` no longer leaks train mode** — it restores the model's previous
+  train/eval mode on return.
+
+### Added
+
+- `tests/test_bugfixes_v2_0_3.py` — 13 regression tests covering every fix above.
+- `compress(..., val_data=...)` parameter (backwards-compatible, default `None`).
+
+---
+
 ## [2.0.2] - 2026-07-03 — Concurrency fix: ONNX export racing with training
 
 ### Fixed

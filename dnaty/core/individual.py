@@ -17,6 +17,10 @@ class Individual:
         self.acc: float = 0.0
         self.last_grad_norm: float = 0.0
         self.last_delta_loss: float = 0.0
+        # Accuracy of the parent at mutation time. Set by _mutate_population so
+        # memory/proxy updates credit the right parent even when the mutant list
+        # is reordered (proxy_filter oversampling). None = unknown.
+        self.parent_acc: float | None = None
 
     def clone(self) -> "Individual":
         new_model = deepcopy(self.model)

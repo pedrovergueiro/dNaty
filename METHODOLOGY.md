@@ -1,6 +1,6 @@
 # dNATY: Technical Methodology
 
-**Version 2.0.2 · Pedro Vergueiro · 2026**
+**Version 2.0.3 · Pedro Vergueiro · 2026**
 
 This document describes the algorithmic design of dNATY for researchers evaluating the system. It answers the three questions a reviewer will ask: what the algorithm does, how it relates to prior work, and what the experiments actually claim.
 

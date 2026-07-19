@@ -147,6 +147,7 @@ def compress(
     finetune_epochs: int = 30,
     sparsity: Optional[str] = None,
     quant_aware: bool = False,
+    val_data=None,
 ) -> CompressResult:
     """
     Find a smaller, faster architecture for the same task using evolutionary NAS.
@@ -188,6 +189,12 @@ def compress(
                            runs under dynamic INT8 quantization so selected
                            architectures are guaranteed to be quantization-friendly.
                            Adds ~20% overhead per generation. Default False.
+        val_data:          Optional held-out DataLoader/FastDataset. When given,
+                           NAS selection and the final reported accuracy use it
+                           instead of train_data — recommended, since evaluating
+                           on the training set inflates the accuracy number.
+                           The final accuracy is always measured in eval() mode
+                           (BN running stats), matching the exported model.
 
     Returns:
         CompressResult with the best model found and all compression metrics.
@@ -206,6 +213,8 @@ def compress(
     from dnaty.evolution.evolver import DnatyEvolver, LatencyEvolver, QuantAwareEvolver
 
     train_data = _maybe_convert_data(train_data)
+    if val_data is not None:
+        val_data = _maybe_convert_data(val_data)
 
     # Route to LatencyEvolver when target="latency"
     if target == "latency":
@@ -220,6 +229,7 @@ def compress(
             progress_callback=progress_callback,
             finetune_epochs=finetune_epochs,
             quant_aware=quant_aware,
+            val_data=val_data,
         )
         if sparsity:
             result = _apply_sparsity(result, sparsity, verbose)
@@ -263,13 +273,18 @@ def compress(
     orig_params = sum(p.numel() for p in model.parameters())
 
     # Phase 1: NAS search
-    evolver.run(train_data, train_data, early_stop_patience=n_generations,
+    eval_data = val_data if val_data is not None else train_data
+    evolver.run(train_data, eval_data, early_stop_patience=n_generations,
                 progress_callback=progress_callback)
 
     # Select best: most-compressed among those above accuracy floor.
     # Fallback: when nothing passes the floor, return the highest-accuracy
     # individual (NOT min FLOPs -- that would sacrifice accuracy for nothing).
-    acc_floor = 0.90
+    # Adaptive floor: on tasks where 90% is unreachable the fixed floor used to
+    # disable compression pressure entirely; anchor it to the best achieved
+    # accuracy instead (capped at the original 0.90).
+    best_pop_acc = max(ind.acc for ind in evolver.population)
+    acc_floor = min(0.90, best_pop_acc - 0.02)
     candidates = [ind for ind in evolver.population if ind.acc >= acc_floor]
     if candidates:
         best = min(candidates, key=lambda ind: ind.count_flops())
@@ -297,13 +312,19 @@ def compress(
                 lambda1=0.0, lambda2=0.0,     # pure accuracy, no structural pressure
                 device=device, batch_size=512,
             )
-        final_acc, _ = evaluate(best, train_data, device)
-        best.acc = final_acc
+        final_acc, _ = evaluate(best, eval_data, device)
         if verbose:
             delta = final_acc - nas_acc
             print(f"Fine-tune acc: {final_acc:.4f}  (NAS: {nas_acc:.4f}  delta={delta:+.4f})")
         compressed_flops  = best.count_flops()
         compressed_params = best.count_params()
+
+    # Final reported accuracy: eval() mode (BN running stats) — the semantics of
+    # the deployed/exported model, unlike the train-mode batch-stats evaluation
+    # used for speed during NAS.
+    final_acc, _ = evaluate(best, eval_data, device, use_train_mode=False)
+    best.acc = final_acc
+    best.model.eval()
 
     flops_reduction = 1.0 - compressed_flops / max(orig_flops, 1)
     result = CompressResult(
@@ -373,10 +394,11 @@ def _compress_latency(
     progress_callback: Optional[Callable] = None,
     finetune_epochs: int = 30,
     quant_aware: bool = False,
+    val_data=None,
 ) -> CompressResult:
     """Internal: latency-aware NAS via LatencyEvolver."""
     import numpy as np
-    from dnaty.evolution.evolver import LatencyEvolver, QuantAwareEvolver
+    from dnaty.evolution.evolver import LatencyEvolver, QuantLatencyEvolver
     from dnaty.training.local_train import local_train, evaluate
 
     if device is None:
@@ -393,7 +415,8 @@ def _compress_latency(
 
     if quant_aware and verbose:
         print("[compress] quant_aware=True with target=latency — INT8 fitness + latency objective")
-    evolver = LatencyEvolver(
+    evolver_cls = QuantLatencyEvolver if quant_aware else LatencyEvolver
+    evolver = evolver_cls(
         n_pop=n_pop,
         n_generations=n_generations,
         t_local=3,
@@ -408,7 +431,8 @@ def _compress_latency(
     orig_flops  = sum(2 * layer_sizes[i] * layer_sizes[i + 1] for i in range(len(layer_sizes) - 1))
     orig_params = sum(p.numel() for p in model.parameters())
 
-    evolver.run(train_data, train_data, early_stop_patience=n_generations,
+    eval_data = val_data if val_data is not None else train_data
+    evolver.run(train_data, eval_data, early_stop_patience=n_generations,
                 progress_callback=progress_callback)
 
     # Best individual: highest accuracy on Pareto front
@@ -425,10 +449,13 @@ def _compress_latency(
         for _ in range(finetune_epochs):
             local_train(best, train_data, n_epochs=1, lr=1e-4,
                         lambda1=0.0, lambda2=0.0, device=device, batch_size=512)
-        final_acc, _ = evaluate(best, train_data, device)
-        best.acc = final_acc
         compressed_flops  = best.count_flops()
         compressed_params = best.count_params()
+
+    # Final reported accuracy: eval() mode — matches the deployed/exported model.
+    final_acc, _ = evaluate(best, eval_data, device, use_train_mode=False)
+    best.acc = final_acc
+    best.model.eval()
 
     best_latency = getattr(best, "latency_ms", None)
     if verbose and best_latency:

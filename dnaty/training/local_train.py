@@ -143,18 +143,27 @@ def evaluate(
     ind: Individual,
     loader,  # DataLoader or FastDataset
     device: str = "cpu",
+    use_train_mode: bool = True,
 ) -> tuple[float, float]:
-    """Return (accuracy, loss). Supports FastDataset and DataLoader."""
+    """Return (accuracy, loss). Supports FastDataset and DataLoader.
+
+    use_train_mode=True (default, used during NAS): BatchNorm applies per-batch
+    statistics instead of poorly-calibrated running stats (which need 10+
+    batches to converge at momentum=0.1). Chunk size 2048 is large enough for
+    accurate batch stats. DynamicMLP has no Dropout, so train/eval only differs
+    on BatchNorm.
+
+    use_train_mode=False: standard eval() semantics (BN running stats) — this is
+    what the deployed/exported model uses, so final reported accuracy should be
+    measured this way.
+    """
     model = ind.model
     if next(model.parameters()).device != torch.device(device):
         model = model.to(device)
         ind.model = model
 
-    # Use train() mode so BatchNorm applies per-batch statistics instead of
-    # poorly-calibrated running stats (which need 10+ batches to converge at
-    # momentum=0.1). Chunk size 2048 is large enough for accurate batch stats.
-    # DynamicMLP has no Dropout, so train/eval only differs on BatchNorm.
-    model.train()
+    was_training = model.training
+    model.train(use_train_mode)
     criterion = nn.CrossEntropyLoss(reduction="sum")
     correct = 0
     total = 0
@@ -182,6 +191,7 @@ def evaluate(
             correct += (out.argmax(dim=1) == yb).sum().item()
             total += len(yb)
 
+    model.train(was_training)  # restore caller's mode — evaluation must not leak state
     return correct / max(total, 1), total_loss / max(total, 1)
 
 
