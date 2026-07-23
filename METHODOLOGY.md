@@ -215,7 +215,7 @@ Statistical test: paired t-test on BWT across 3 seeds (dNATY vs. EWC); p-value a
 
 ## 6. Reproducibility
 
-All experiments are seeded and deterministic. The pytest suite (72 tests) includes reproducibility regression tests gating every release. To reproduce:
+All experiments are seeded and deterministic. The pytest suite (142 tests) includes reproducibility regression tests gating every release. To reproduce:
 
 ```bash
 # NAS vs Random NAS (Experiment 1 mini-version)
