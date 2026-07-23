@@ -1,6 +1,6 @@
 # dNATY: Technical Methodology
 
-**Version 2.0.3 · Pedro Vergueiro · 2026**
+**Version 2.1.0 · Pedro Vergueiro · 2026**
 
 This document describes the algorithmic design of dNATY for researchers evaluating the system. It answers the three questions a reviewer will ask: what the algorithm does, how it relates to prior work, and what the experiments actually claim.
 
@@ -68,6 +68,21 @@ where γ = 0.99 is a temporal decay factor. Operator selection probabilities for
 **Complexity.** Score updates are O(1) per applied operator. Each generation queries O(K) to compute the softmax. Memory is O(K · max_size), where max_size = 500 bounds the replay buffer independently.
 
 **What this is not.** EpisodicMemory in dNATY is a mechanism for **NAS operator scheduling**, not for continual learning replay. The name overlaps with the CL literature but the mechanism is distinct. The CL replay strategy (Experiment 3) is a separate module described in Section 4.
+
+### 2.4 Transferable Operator Priors (v2.1.0)
+
+The operator scores `s = (s_1, …, s_K)` are a compact, task-agnostic summary of *which structural moves paid off* — they carry no weights and no data. dNATY 2.1.0 makes them transferable across runs: after searching task A, export `s_A`; when searching a related task B, initialise B's memory from `s_A` instead of from the uniform prior.
+
+**Normalisation.** Raw scores are not comparable across runs — their magnitude depends on the gradient norms `‖∇L‖₂` and the number of improving steps of the source run. Before injection the prior is centred and scaled to unit maximum magnitude, then multiplied by a strength `w`:
+
+```
+ŝ_k = (s_k − mean(s)) / max_j |s_j − mean(s)|          # unit-max-abs, scale-free
+s_k^(B, init) = w · ŝ_k                                 # w = warm_start_weight
+```
+
+Because operator selection is `softmax(s/τ)`, `w` acts as an inverse-temperature on the transferred prior: `w = 0` recovers a cold start; `w = 2` (default) biases early generations toward the top operators by a few ×; large `w` risks premature convergence. Since the per-generation update `s_k ← γ·s_k + impact_k` decays seeded scores whenever new improving experiences arrive, the prior is a **head start that provably fades** — after `t` improving updates the seeded component is scaled by `γ^t`, so task-B evidence dominates asymptotically. The transferred prior can only bias *operator scheduling*; it cannot fix the final architecture, so a poorly-matched prior costs at most a slow start, never a wrong answer.
+
+**Relation to meta-learning.** This is meta-learning at the level of the *search operator schedule*, not the weight initialisation (contrast MAML, §3.1). It requires no second-order gradients, no shared architecture, and no task distribution defined in advance — two related tasks suffice, and the transferable object is a K-vector (K = 11), not a network. The claim is scoped to related MLP/tabular tasks; `scripts/warm_start_demo.py` measures generations-to-target, cold vs warm-started, so the effect is reported rather than asserted.
 
 ---
 

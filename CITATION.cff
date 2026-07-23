@@ -6,9 +6,9 @@ authors:
     given-names: Pedro
     email: pedrol.vergueiro@gmail.com
 title: "dNaty: Dynamic Neuro-Adaptive sYstem with evoluTionarY Learning"
-abstract: "Evolutionary neural architecture search for model compression on CPUs. Multi-objective NSGA-II search guided by episodic memory finds smaller architectures that keep accuracy, with continual-learning support via balanced replay."
-version: "1.1.7"
-date-released: "2026-06-15"
+abstract: "Evolutionary neural architecture search for model compression on CPUs. Multi-objective NSGA-II search guided by episodic memory finds smaller architectures that keep accuracy, with continual-learning support via balanced replay. Operator priors are transferable across related tasks (warm-start), and the full accuracy/FLOPs Pareto front is exposed for per-device deployment."
+version: "2.1.0"
+date-released: "2026-07-23"
 url: "https://github.com/pedrovergueiro/dNaty"
 repository-code: "https://github.com/pedrovergueiro/dNaty"
 license: "BSL-1.1"

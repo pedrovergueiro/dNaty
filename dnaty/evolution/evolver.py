@@ -62,6 +62,8 @@ class DnatyEvolver:
         batch_size: int = 512,
         proxy_filter: bool = False,
         proxy_oversample: int = 2,
+        warm_start=None,
+        warm_start_weight: float = 2.0,
     ):
         self.n_pop = n_pop
         self.n_generations = n_generations
@@ -85,10 +87,40 @@ class DnatyEvolver:
         self.population: list[Individual] = []
         self.shared_memory = EpisodicMemory(max_size=1000, decay_gamma=memory_gamma)
 
+        # Transferable operator prior (v2.1.0): seed the shared memory so the
+        # search starts biased toward operators that worked on a related task.
+        self.warm_start_weight = warm_start_weight
+        self.n_warm_started = 0
+        if warm_start is not None and warm_start_weight != 0:
+            self.n_warm_started = self._apply_warm_start(warm_start, warm_start_weight)
+            if verbose and self.n_warm_started:
+                print(f"[warm_start] seeded {self.n_warm_started} operator priors "
+                      f"(weight={warm_start_weight})")
+
         self._proxy_ensemble = None
         if proxy_filter:
             from dnaty.utils.proxies import ProxyEnsemble
             self._proxy_ensemble = ProxyEnsemble()
+
+    def _apply_warm_start(self, warm_start, weight: float) -> int:
+        """Seed self.shared_memory from a prior (dict, path, or EpisodicMemory)."""
+        from dnaty.core.memory import load_prior
+        if isinstance(warm_start, EpisodicMemory):
+            prior = warm_start.to_prior()
+        elif isinstance(warm_start, dict):
+            prior = warm_start
+        elif isinstance(warm_start, (str, bytes)) or hasattr(warm_start, "__fspath__"):
+            prior = load_prior(str(warm_start))
+        else:
+            raise TypeError(
+                "warm_start must be a prior dict, a path to a saved prior, or an "
+                f"EpisodicMemory instance -- got {type(warm_start).__name__}"
+            )
+        return self.shared_memory.seed_from_prior(prior, weight=weight)
+
+    def export_prior(self) -> dict:
+        """Return the current transferable operator prior (see EpisodicMemory.to_prior)."""
+        return self.shared_memory.to_prior()
 
     def _make_individual(self) -> Individual:
         sizes = [self.input_size] + self.init_hidden

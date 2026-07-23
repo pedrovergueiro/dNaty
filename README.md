@@ -165,6 +165,8 @@ Reproduce: `python scripts/prove_it.py` (NAS vs random) · `python -m dnaty.expe
 | Save / reload | `result.save("m.pt")` / `dnaty.load("m.pt")` |
 | Detect data drift in production | `DriftDetector().fit(X_train)` + `ProductionTracker(model, detector)` |
 | Profile compute before deciding | `count_flops(model, input_shape)` / `flops_by_layer(...)` |
+| Get the full accuracy/FLOPs trade-off curve | `result.pareto_front` / `result.pareto_front_csv("front.csv")` |
+| Reuse search knowledge on a related task | `result.save_memory("prior.json")` → `compress(..., warm_start="prior.json")` |
 
 Supported backbones for `compress_with_backbone`: ResNet, MobileNetV2/V3, EfficientNet, VGG, DenseNet, ViT, and custom models with an `fc`/`classifier`/`head` attribute.
 
@@ -196,6 +198,61 @@ result = compress(model, ds, target_flops=0.5, n_generations=30, seed=42)
 
 ---
 
+## New in 2.1.0
+
+### The full Pareto front, not just one model
+
+`compress()` returns a single winner, but the search explores a whole
+accuracy/FLOPs trade-off curve. That curve is now exposed — pick the point that
+fits your device budget instead of accepting one pre-chosen size:
+
+```python
+result = compress(model, ds, target_flops=0.5, n_generations=30)
+
+print(result.pareto_summary())
+# Pareto front — 6 non-dominated architecture(s):
+#   arch=[196, 29, 128]  acc=0.9731  FLOPs=27,400 (-64.2%)  params=14,762
+#   arch=[224, 32, 16, 128]  acc=0.9788  FLOPs=29,184 (-61.9%)  params=15,795
+#   ...
+
+result.pareto_front           # list of {arch, accuracy, flops, params, flops_reduction_pct}
+result.pareto_front_csv("front.csv")   # plot the trade-off curve in your paper
+```
+
+Front accuracies are eval-mode, NAS-phase (un-fine-tuned) numbers for choosing an
+operating point; the returned `result.model` is the fine-tuned winner.
+
+### Transferable memory — the search learns your domain
+
+dNATY's engine is episodic memory: it learns *which structural mutations help*.
+In 2.1.0 that learned operator prior is transferable. Save it after one run and
+warm-start the next **related** task — the search starts biased toward what
+already worked instead of re-discovering it, so it converges in fewer
+generations:
+
+```python
+# Task A — learn a prior on your first sensor model
+r1 = compress(model_a, data_a, target_flops=0.5)
+r1.save_memory("sensor_prior.json")
+
+# Task B — a related model/dataset in the same domain, warm-started
+r2 = compress(model_b, data_b, target_flops=0.5, warm_start="sensor_prior.json")
+
+# or chain in-process, no disk:
+r2 = compress(model_b, data_b, warm_start=r1.export_memory())
+```
+
+`warm_start_weight` (default `2.0`) controls how decisively the prior biases early
+generations — `0` ignores it, `≥4` is aggressive. The prior fades as
+task-specific evidence accumulates, so it is a head start, not a cage.
+
+Measure the speedup yourself: `python scripts/warm_start_demo.py` runs cold vs
+warm-started on two related tasks and reports generations-to-target. This is
+operator-prior transfer between related MLP/tabular tasks — not a claim about
+ImageNet-scale conv search.
+
+---
+
 ## Scope, stated plainly
 
 **Strong:** MLPs on tabular/sensor data; classifier heads on frozen CNN/ViT backbones; CPU-only environments.
@@ -209,7 +266,7 @@ No comparison against OFA or MnasNet is claimed — those target full conv searc
 
 ```bash
 pip install dnaty                # stable (recommended)
-pip install dnaty==2.0.3         # pin to this release
+pip install dnaty==2.1.0         # pin to this release
 pip install git+https://github.com/pedrovergueiro/dNaty  # latest from source
 ```
 
@@ -228,16 +285,16 @@ dNaty/
 ├── dnaty/
 │   ├── compress.py              # public API: compress, compress_cnn,
 │   │                            #   compress_with_backbone, prune_conv_channels
-│   ├── result.py                # CompressResult + load() — save/export/latency
-│   ├── evolution/evolver.py     # DnatyEvolver / CnnEvolver — NSGA-II search
-│   ├── core/                    # DynamicMLP, DynamicCNN, Individual, episodic memory
+│   ├── result.py                # CompressResult (+ Pareto front, save_memory) / load()
+│   ├── evolution/evolver.py     # DnatyEvolver / CnnEvolver — NSGA-II search (+ warm_start)
+│   ├── core/                    # DynamicMLP, DynamicCNN, Individual, episodic memory + priors
 │   ├── operators/               # structural mutation operators (dense + conv)
 │   ├── training/local_train.py  # fast local trainer
 │   ├── monitoring/              # DriftDetector, ProductionTracker
 │   ├── utils/flops_counter.py   # count_flops, flops_by_layer
 │   └── experiments/fast_dataset.py  # zero-I/O MNIST/FashionMNIST/CIFAR10 loader
-├── scripts/                     # prove_it.py, benchmark_market_real.py, ...
-└── tests/                       # pytest suite (119 tests) — gates every release
+├── scripts/                     # prove_it.py, warm_start_demo.py, benchmark_market_real.py, ...
+└── tests/                       # pytest suite (142 tests) — gates every release
 ```
 
 ---
@@ -256,7 +313,7 @@ Prefer not to run it locally? [dnaty.org](https://dnaty.org) hosts the same engi
   title   = {dNaty: Dynamic Neuro-Adaptive sYstem with evoluTionarY Learning},
   year    = {2026},
   url     = {https://github.com/pedrovergueiro/dNaty},
-  version = {2.0.3},
+  version = {2.1.0},
   license = {BSL-1.1}
 }
 ```

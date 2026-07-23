@@ -25,6 +25,7 @@ from dnaty._compress_helpers import (
     _infer_layer_sizes,
     _infer_n_classes_from_head,
     _split_backbone_head,
+    _build_pareto_front,
 )
 
 
@@ -148,6 +149,8 @@ def compress(
     sparsity: Optional[str] = None,
     quant_aware: bool = False,
     val_data=None,
+    warm_start=None,
+    warm_start_weight: float = 2.0,
 ) -> CompressResult:
     """
     Find a smaller, faster architecture for the same task using evolutionary NAS.
@@ -195,9 +198,23 @@ def compress(
                            on the training set inflates the accuracy number.
                            The final accuracy is always measured in eval() mode
                            (BN running stats), matching the exported model.
+        warm_start:        Transferable operator prior to seed the search from a
+                           previous, related run — a dict from
+                           result.export_memory(), a path to a JSON file written
+                           by result.save_memory(), or an EpisodicMemory. The
+                           search starts biased toward operators that worked
+                           before, so it converges in fewer generations on
+                           related tasks. Default None (cold start).
+        warm_start_weight: How decisively the prior biases early generations
+                           (inverse-temperature). 0 = ignore, 1 = gentle,
+                           2 = default, >=4 = aggressive. Ignored if warm_start
+                           is None.
 
     Returns:
         CompressResult with the best model found and all compression metrics.
+        `result.pareto_front` lists every non-dominated accuracy/FLOPs trade-off
+        found; `result.export_memory()` / `result.save_memory(path)` return the
+        operator prior for warm-starting the next related task.
 
     Example:
         >>> from dnaty import compress
@@ -230,6 +247,8 @@ def compress(
             finetune_epochs=finetune_epochs,
             quant_aware=quant_aware,
             val_data=val_data,
+            warm_start=warm_start,
+            warm_start_weight=warm_start_weight,
         )
         if sparsity:
             result = _apply_sparsity(result, sparsity, verbose)
@@ -267,6 +286,8 @@ def compress(
         device=device,
         verbose=verbose,
         lambda2=lambda2,
+        warm_start=warm_start,
+        warm_start_weight=warm_start_weight,
     )
 
     orig_flops  = sum(2 * layer_sizes[i] * layer_sizes[i + 1] for i in range(len(layer_sizes) - 1))
@@ -326,6 +347,10 @@ def compress(
     best.acc = final_acc
     best.model.eval()
 
+    # Full accuracy/FLOPs trade-off curve + transferable operator prior (v2.1.0).
+    pareto_front = _build_pareto_front(evolver, orig_flops, eval_data, device)
+    operator_priors = evolver.export_prior()
+
     flops_reduction = 1.0 - compressed_flops / max(orig_flops, 1)
     result = CompressResult(
         model=best.model,
@@ -337,6 +362,8 @@ def compress(
         flops_reduction=flops_reduction,
         generations=n_generations,
         arch=arch,
+        pareto_front=pareto_front,
+        operator_priors=operator_priors,
     )
     if result.model_grew:
         if input_size >= 100:
@@ -395,6 +422,8 @@ def _compress_latency(
     finetune_epochs: int = 30,
     quant_aware: bool = False,
     val_data=None,
+    warm_start=None,
+    warm_start_weight: float = 2.0,
 ) -> CompressResult:
     """Internal: latency-aware NAS via LatencyEvolver."""
     import numpy as np
@@ -426,6 +455,8 @@ def _compress_latency(
         device=device,
         verbose=verbose,
         target_device=hw_target,
+        warm_start=warm_start,
+        warm_start_weight=warm_start_weight,
     )
 
     orig_flops  = sum(2 * layer_sizes[i] * layer_sizes[i + 1] for i in range(len(layer_sizes) - 1))
@@ -462,6 +493,9 @@ def _compress_latency(
         print(f"Best latency ({hw_target}): {best_latency:.2f} ms  "
               f"({1000/best_latency:.0f} FPS)")
 
+    pareto_front = _build_pareto_front(evolver, orig_flops, eval_data, device)
+    operator_priors = evolver.export_prior()
+
     flops_reduction = 1.0 - compressed_flops / max(orig_flops, 1)
     result = CompressResult(
         model=best.model,
@@ -473,6 +507,8 @@ def _compress_latency(
         flops_reduction=flops_reduction,
         generations=n_generations,
         arch=arch,
+        pareto_front=pareto_front,
+        operator_priors=operator_priors,
     )
     _write_telemetry(result, hw_target=hw_target, input_size=input_size)
     return result

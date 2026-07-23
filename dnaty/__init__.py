@@ -35,12 +35,21 @@ Quick start:
     # Accurate FLOPs counting per layer
     from dnaty.utils.flops_counter import count_flops, flops_by_layer
     print(f"Total FLOPs: {count_flops(model, input_shape=(784,)):,}")
+
+    # Full accuracy/FLOPs trade-off curve (v2.1.0) — pick per device budget
+    print(result.pareto_summary())
+    result.pareto_front_csv("front.csv")
+
+    # Transferable memory (v2.1.0) — warm-start a related task from a prior run
+    result.save_memory("prior.json")
+    result2 = compress(other_model, other_data, warm_start="prior.json")
 """
 
-__version__ = "2.0.3"
+__version__ = "2.1.0"
 
 from dnaty.compress import compress, compress_cnn, compress_with_backbone, prune_conv_channels
 from dnaty.result import CompressResult, load
+from dnaty.core.memory import save_prior, load_prior
 from dnaty.evolution.evolver import DnatyEvolver, CnnEvolver, LatencyEvolver, QuantAwareEvolver
 from dnaty.monitoring import DriftDetector, ProductionTracker
 from dnaty.utils.flops_counter import count_flops, flops_by_layer
@@ -59,6 +68,9 @@ __all__ = [
     "prune_conv_channels",
     "load",
     "CompressResult",
+    # Transferable operator priors (v2.1.0)
+    "save_prior",
+    "load_prior",
     # Evolvers
     "DnatyEvolver",
     "CnnEvolver",

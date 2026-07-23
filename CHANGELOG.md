@@ -2,6 +2,58 @@
 
 All notable changes to dNATY are documented here.
 
+## [2.1.0] - 2026-07-23 — Transferable Search: warm-start memory + Pareto-front API
+
+Two features, both built on dNATY's core (episodic-memory-guided NSGA-II search).
+No breaking changes — every new parameter and field is optional with a
+backward-compatible default.
+
+### Added
+
+- **Transferable episodic memory (operator-prior warm-start).** The per-operator
+  usefulness scores the search accumulates — dNATY's central "which structural
+  mutations help" signal — can now be exported and re-used to warm-start a later
+  search on a *related* task. On related MLP/tabular tasks the search starts
+  biased toward operators that already worked, so it converges in fewer
+  generations instead of re-discovering the same priors from scratch.
+  - `EpisodicMemory.to_prior()` → compact JSON-serialisable dict (scores only, no
+    weights, no raw experiences). `EpisodicMemory.seed_from_prior(prior, weight)`
+    seeds a fresh memory; raw magnitudes are normalised away so `weight` acts as a
+    clean inverse-temperature (0 = cold, 2 = default, ≥4 = aggressive). Seeded
+    scores decay via `gamma` as task-specific evidence arrives, so the prior fades
+    and yields to real signal over the run.
+  - `compress(..., warm_start=..., warm_start_weight=2.0)` accepts a prior dict, a
+    path to a saved prior, or an `EpisodicMemory`. Same on the `target="latency"`
+    path.
+  - `result.export_memory()` / `result.save_memory(path)` return/persist the
+    learned prior; module-level `dnaty.save_prior` / `dnaty.load_prior` for JSON.
+  - `DnatyEvolver(warm_start=..., warm_start_weight=...)` + `evolver.export_prior()`.
+  - `scripts/warm_start_demo.py` — measures generations-to-target, cold vs
+    warm-started, on two related tasks (MNIST→FashionMNIST, or `--synthetic`).
+
+- **Pareto-front API.** `compress()` now exposes the full non-dominated
+  accuracy/FLOPs/params trade-off found during search, not just the single
+  returned winner — the standard NAS deliverable, and what an edge engineer needs
+  to pick the model that fits a specific device budget.
+  - `result.pareto_front` — list of `{arch, accuracy, flops, params,
+    flops_reduction_pct}`, sorted by FLOPs, de-duplicated, guaranteed
+    non-dominated. Accuracies are re-measured in `eval()` mode (deployed-model
+    semantics) and are NAS-phase (un-fine-tuned) — the returned `.model` remains
+    the fine-tuned winner with the headline `.accuracy`.
+  - `result.pareto_summary()` (human-readable) and `result.pareto_front_csv(path)`
+    (for plotting the trade-off curve in a paper).
+
+### Notes
+
+- `CompressResult` gained two optional fields (`pareto_front`, `operator_priors`),
+  both defaulting to empty. `save()`/`dnaty.load()` are unchanged and still
+  model-focused: a reloaded result has no prior, so `save_memory()` on it raises a
+  clear error (persist the prior separately with `save_memory()` right after
+  `compress()`).
+- 19 new tests in `tests/test_v2_1_0.py` (full suite: 142 passed, 1 skipped).
+
+---
+
 ## [2.0.3] - 2026-07-19 — Bug-hunt release: 8 correctness fixes
 
 ### Fixed

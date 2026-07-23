@@ -5,6 +5,63 @@ import torch
 import torch.nn as nn
 
 
+def _build_pareto_front(evolver, orig_flops: int, eval_data, device: str) -> list[dict]:
+    """Extract the non-dominated (accuracy, FLOPs) architectures from the final
+    population and return them sorted by FLOPs (smallest first).
+
+    Accuracies are re-measured in eval() mode (BatchNorm running stats — the
+    semantics of the deployed model), matching how compress() reports the
+    winner's final accuracy. These are NAS-phase, *un-fine-tuned* numbers: the
+    front is for choosing an operating point, not a promise of post-fine-tune
+    accuracy on every point.
+    """
+    from dnaty.evolution.selection import fast_non_dominated_sort
+    from dnaty.training.local_train import evaluate
+
+    pop = list(getattr(evolver, "population", []))
+    if not pop:
+        return []
+
+    # Deduplicate by architecture signature so the front is a clean curve.
+    seen: dict[tuple, "object"] = {}
+    for ind in pop:
+        sizes = tuple(getattr(ind.model, "layer_sizes", ()))
+        n_cls = getattr(ind.model, "n_classes", None)
+        sig = (sizes, n_cls, ind.count_flops())
+        if sig not in seen:
+            seen[sig] = ind
+    uniq = list(seen.values())
+
+    # Honest accuracy for the front: eval-mode re-measurement.
+    accs = []
+    for ind in uniq:
+        try:
+            acc, _ = evaluate(ind, eval_data, device, use_train_mode=False)
+        except Exception:
+            acc = ind.acc
+        accs.append(acc)
+
+    # Maximise accuracy, minimise FLOPs -> (acc, -flops) for the maximise-all sorter.
+    fitnesses = [(accs[i], -float(uniq[i].count_flops())) for i in range(len(uniq))]
+    fronts = fast_non_dominated_sort(fitnesses)
+    front_idx = fronts[0] if fronts else list(range(len(uniq)))
+
+    entries = []
+    for i in front_idx:
+        ind = uniq[i]
+        flops = ind.count_flops()
+        full_sizes = list(getattr(ind.model, "layer_sizes", []))
+        entries.append({
+            "arch": full_sizes[1:],  # hidden layer sizes (drop input dim)
+            "accuracy": round(float(accs[i]), 4),
+            "flops": int(flops),
+            "params": int(ind.count_params()),
+            "flops_reduction_pct": round((1.0 - flops / max(orig_flops, 1)) * 100, 2),
+        })
+    entries.sort(key=lambda e: e["flops"])
+    return entries
+
+
 def _infer_layer_sizes(model: nn.Module) -> list[int]:
     """Extract [in, h1, h2, ..., out] from a Linear-based model."""
     sizes: list[int] = []

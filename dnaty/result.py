@@ -40,6 +40,15 @@ class CompressResult:
     generations: int
     arch: list[int] = field(default_factory=list)   # hidden layer sizes found
 
+    # v2.1.0 --------------------------------------------------------------- #
+    # Non-dominated accuracy/FLOPs/params trade-offs discovered during search
+    # (the full Pareto front, not just the returned winner). Each entry:
+    #   {"arch", "accuracy", "flops", "params", "flops_reduction_pct"}.
+    pareto_front: list = field(default_factory=list)
+    # Transferable operator prior (dnaty.core.memory.to_prior format). Pass it
+    # to a later compress(..., warm_start=...) on a related task.
+    operator_priors: dict = field(default_factory=dict)
+
     @property
     def flops_reduction_pct(self) -> float:
         return self.flops_reduction * 100
@@ -66,6 +75,64 @@ class CompressResult:
             f"({self.original_params:,} -> {self.compressed_params:,}) | "
             f"acc={self.accuracy:.4f}"
         )
+
+    def pareto_summary(self) -> str:
+        """One line per Pareto-optimal architecture found during search.
+
+        Lets you pick the model that fits a specific device budget instead of
+        being handed a single winner. Accuracies are NAS-phase (eval-mode)
+        validation numbers for the *un-fine-tuned* architectures; the returned
+        `.model` is the fine-tuned winner and carries the headline `.accuracy`.
+        """
+        if not self.pareto_front:
+            return "Pareto front unavailable (populated by compress(); not persisted by save())."
+        lines = [f"Pareto front — {len(self.pareto_front)} non-dominated architecture(s):"]
+        for p in self.pareto_front:
+            lines.append(
+                f"  arch={p['arch']}  acc={p['accuracy']:.4f}  "
+                f"FLOPs={p['flops']:,} (-{p['flops_reduction_pct']:.1f}%)  "
+                f"params={p['params']:,}"
+            )
+        return "\n".join(lines)
+
+    def pareto_front_csv(self, path: str) -> None:
+        """Write the Pareto front to a CSV (arch, accuracy, flops, params, ...).
+
+        Handy for plotting the accuracy/FLOPs trade-off curve in a paper or for
+        choosing a deployment point per device budget.
+        """
+        import csv
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["arch", "accuracy", "flops", "params", "flops_reduction_pct"])
+            for p in self.pareto_front:
+                writer.writerow([
+                    "-".join(str(x) for x in p["arch"]),
+                    f"{p['accuracy']:.6f}", p["flops"], p["params"],
+                    f"{p['flops_reduction_pct']:.4f}",
+                ])
+
+    def export_memory(self) -> dict:
+        """Return the transferable operator prior learned during this search.
+
+        Pass it straight into a later run on a related task:
+            r1 = compress(model_a, data_a)
+            r2 = compress(model_b, data_b, warm_start=r1.export_memory())
+        """
+        return dict(self.operator_priors)
+
+    def save_memory(self, path: str) -> None:
+        """Persist the learned operator prior to JSON for future warm-starts.
+
+        Later:  compress(model, data, warm_start="prior.json")
+        """
+        if not self.operator_priors:
+            raise ValueError(
+                "No operator prior on this result. save_memory() works on results "
+                "returned by compress(); it is not restored by dnaty.load()."
+            )
+        from dnaty.core.memory import save_prior
+        save_prior(self.operator_priors, path)
 
     def save(self, path: str) -> None:
         """Persist the compressed model and all metrics to a .pt file."""
