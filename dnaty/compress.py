@@ -794,6 +794,10 @@ def compress_with_backbone(
         for ep in range(finetune_epochs):
             ep_correct = ep_total = 0
             for xb, yb in raw_loader:
+                # A trailing batch of 1 sample makes the backbone's BatchNorm
+                # raise "Expected more than 1 value per channel"; skip it.
+                if xb.size(0) < 2:
+                    continue
                 xb = xb.to(device)
                 yb = yb.to(device) if isinstance(yb, torch.Tensor) else torch.tensor(yb, device=device)
                 optimizer.zero_grad()

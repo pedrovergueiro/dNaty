@@ -2,6 +2,65 @@
 
 All notable changes to dNATY are documented here.
 
+## [2.1.1] - 2026-07-27 — Bug-hunt release: algorithm correctness fixes
+
+No API changes. `lambda1`/`lambda2` remain in `local_train`'s signature for
+backward compatibility (they no longer feed a training-loss term — see below).
+
+### Fixed
+
+- **BatchNorm crash on a size-1 batch/chunk (most severe).** During NAS,
+  `local_train()` and `evaluate()` run the model in train mode so BatchNorm uses
+  per-batch statistics — but a trailing batch of exactly 1 sample raises
+  `"Expected more than 1 value per channel"`, taking down the whole `compress()`
+  call. This fired whenever `len(dataset) % batch_size == 1` (e.g. the public
+  `compress((X, y))` path builds a `batch_size=256` loader, so any dataset with
+  `N % 256 == 1`), and on the FastDataset eval path when `len(val) % 2048 == 1`.
+  Those size-<2 forwards now fall back to eval-mode BatchNorm (running stats) via
+  a scoped guard, so they are well-defined instead of crashing; a leftover single
+  sample no longer aborts training/eval. Also guarded the end-to-end fine-tune
+  loop in `compress_with_backbone()` (a backbone's BatchNorm2d had the same issue).
+
+- **CNN `prune_channels` discarded every trained weight.** Unlike its sibling
+  operators, it rebuilt the network and copied *nothing* — the mutated child was
+  fully re-initialised at random, so after only `t_local` epochs it almost always
+  lost NSGA-II selection. Since `CnnEvolver` budget-boosts exactly this operator
+  (plus `swap_conv_to_dw`) to hit a FLOPs target, the single most important
+  channel-compression move was effectively inert. It now preserves the trained
+  weights: unmodified blocks copy verbatim, and the pruned block (plus the block
+  that consumes it) keep their overlapping channel slice.
+
+- **NSGA-II crowding distance polluted by the unused third objective.** Fitness is
+  `(accuracy, -cost, 0.0)`; the constant `0.0` placeholder made
+  `crowding_distance` hand a spurious *infinite* distance to whichever two
+  individuals sat first/last in index order within a truncated front, biasing
+  selection and diversity. Degenerate (constant) objectives are now skipped before
+  boundary assignment, so only genuine objective extremes get infinite distance.
+
+- **Dead structural-cost term removed from `local_train`.** A params/FLOPs constant
+  (`requires_grad=False`) was added to the loss, contributing exactly zero gradient
+  — it never applied any training pressure, only offset the reported loss (and
+  cancelled out in the `delta_grad` signal). Removed; compression pressure is
+  applied where it actually bites, the NSGA-II Pareto fitness (`-cost`).
+
+- **`analysis.stats.anova_tukey` used the wrong test.** It was labelled "Tukey HSD"
+  but ran a *paired* t-test between independent groups, applied no
+  multiple-comparison correction, and raised on unequal group sizes. Replaced with
+  Welch's t-test + pooled-SD Cohen's d + Bonferroni correction over the pairwise
+  comparisons; groups may now differ in size. (`paired_ttest`, used correctly and
+  paired-by-seed in the continual-learning experiments, is unchanged.)
+
+- **Docstring accuracy.** MLP `add_conv_block` claimed to be a "bottleneck that
+  reduces FLOPs"; it appends a projection layer and slightly *increases* FLOPs
+  (kept in check by the Pareto fitness). Corrected to match the code.
+
+### Notes
+
+- 13 new regression tests in `tests/test_bugfixes_algo.py` cover every fix above
+  (algorithm suite: 125 passed).
+
+---
+
 ## [2.1.0] - 2026-07-23 — Transferable Search: warm-start memory + Pareto-front API
 
 Two features, both built on dNATY's core (episodic-memory-guided NSGA-II search).

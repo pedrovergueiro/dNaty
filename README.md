@@ -266,7 +266,7 @@ No comparison against OFA or MnasNet is claimed — those target full conv searc
 
 ```bash
 pip install dnaty                # stable (recommended)
-pip install dnaty==2.1.0         # pin to this release
+pip install dnaty==2.1.1         # pin to this release
 pip install git+https://github.com/pedrovergueiro/dNaty  # latest from source
 ```
 
@@ -294,7 +294,7 @@ dNaty/
 │   ├── utils/flops_counter.py   # count_flops, flops_by_layer
 │   └── experiments/fast_dataset.py  # zero-I/O MNIST/FashionMNIST/CIFAR10 loader
 ├── scripts/                     # prove_it.py, warm_start_demo.py, benchmark_market_real.py, ...
-└── tests/                       # pytest suite (142 tests) — gates every release
+└── tests/                       # pytest suite (155 tests) — gates every release
 ```
 
 ---
@@ -313,7 +313,7 @@ Prefer not to run it locally? [dnaty.org](https://dnaty.org) hosts the same engi
   title   = {dNaty: Dynamic Neuro-Adaptive sYstem with evoluTionarY Learning},
   year    = {2026},
   url     = {https://github.com/pedrovergueiro/dNaty},
-  version = {2.1.0},
+  version = {2.1.1},
   license = {BSL-1.1}
 }
 ```

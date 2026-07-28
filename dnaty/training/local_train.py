@@ -4,12 +4,38 @@ Supports FastDataset (in-RAM tensors) and standard DataLoader.
 Optimisations: zero_grad(set_to_none=True), non_blocking, inference_mode, simplified SAM.
 """
 from __future__ import annotations
+from contextlib import contextmanager
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from dnaty.core.individual import Individual
 from dnaty.utils.latency_bench import ONNX_EXPORT_LOCK
+
+_BN_TYPES = (nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d)
+
+
+@contextmanager
+def _bn_eval_if_tiny(model: nn.Module, batch_size: int):
+    """BatchNorm needs >=2 samples per channel in train mode, otherwise it raises
+    "Expected more than 1 value per channel". A leftover batch/chunk of size 1
+    (e.g. len(dataset) % batch_size == 1) would crash local_train()/evaluate().
+
+    For those size-<2 forwards we temporarily switch the BatchNorm layers to eval
+    mode (running stats) so the pass is well-defined instead of crashing. Affects
+    at most one leftover sample per epoch, so the impact on the metric is
+    negligible; a no-op when the batch is large enough or the model is in eval."""
+    if not (model.training and batch_size < 2):
+        yield
+        return
+    switched = [m for m in model.modules() if isinstance(m, _BN_TYPES) and m.training]
+    for m in switched:
+        m.eval()
+    try:
+        yield
+    finally:
+        for m in switched:
+            m.train()
 
 
 def local_train(
@@ -41,11 +67,11 @@ def local_train(
     # Label smoothing: reduces overfitting, improves generalisation ~0.3-0.5pp
     criterion = nn.CrossEntropyLoss(label_smoothing=0.05)
 
-    # Structural cost: computed ONCE per individual
-    n_params = ind.count_params()
-    n_flops  = ind.count_flops()
-    cost_val = lambda1 * n_params * 1e-5 + lambda2 * 0.01 * n_flops * 1e-5
-    cost_penalty = torch.tensor(cost_val, dtype=torch.float32, device=device)
+    # Structural cost (params/FLOPs) is a constant w.r.t. the weights, so it has
+    # zero gradient and cannot be applied as a training-loss term. Compression
+    # pressure is applied where it actually bites: the NSGA-II Pareto fitness
+    # (see DnatyEvolver._fitness), which trades accuracy against -cost directly.
+    # lambda1/lambda2 are kept in the signature for backward compatibility.
 
     # LR schedule: cosine annealing -- high at start, low at end
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=n_epochs, eta_min=lr*0.1)
@@ -105,12 +131,13 @@ def local_train(
             # thread (see dnaty/utils/latency_bench.py).
             with ONNX_EXPORT_LOCK:
                 optimizer.zero_grad(set_to_none=True)
-            with torch.autocast(device_type=device_type, enabled=use_amp):
+            with _bn_eval_if_tiny(model, xb.size(0)), \
+                    torch.autocast(device_type=device_type, enabled=use_amp):
                 out = model(xb)
                 if use_mixup:
-                    loss = lam * criterion(out, yb) + (1.0 - lam) * criterion(out, yb_b) + cost_penalty
+                    loss = lam * criterion(out, yb) + (1.0 - lam) * criterion(out, yb_b)
                 else:
-                    loss = criterion(out, yb) + cost_penalty
+                    loss = criterion(out, yb)
             scaler.scale(loss).backward()
 
             # Unscale before measuring gradient norm (AMP scales grads)
@@ -178,7 +205,8 @@ def evaluate(
         for i in range(0, len(vx), chunk):
             xb = vx[i:i+chunk].to(device, non_blocking=True)
             yb = vy[i:i+chunk].to(device, non_blocking=True)
-            out = model(xb)
+            with _bn_eval_if_tiny(model, xb.size(0)):
+                out = model(xb)
             total_loss += criterion(out, yb).item()
             correct += (out.argmax(dim=1) == yb).sum().item()
             total += len(yb)
@@ -186,7 +214,8 @@ def evaluate(
         for xb, yb in loader:
             xb = xb.to(device, non_blocking=True)
             yb = yb.to(device, non_blocking=True)
-            out = model(xb)
+            with _bn_eval_if_tiny(model, xb.size(0)):
+                out = model(xb)
             total_loss += criterion(out, yb).item()
             correct += (out.argmax(dim=1) == yb).sum().item()
             total += len(yb)
@@ -216,7 +245,9 @@ def micro_adapt(
         x, y = x.to(device), y.to(device)
 
     model.zero_grad()
-    criterion(model(x), y).backward()
+    with _bn_eval_if_tiny(model, x.size(0)):
+        out = model(x)
+    criterion(out, y).backward()
     with torch.no_grad():
         all_grads = torch.cat([
             p.grad.abs().flatten()

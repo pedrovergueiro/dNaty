@@ -47,12 +47,17 @@ def crowding_distance(fitnesses: list[tuple], front: list[int]) -> dict[int, flo
     F = np.array([fitnesses[i] for i in front], dtype=np.float64)
     for obj in range(n_obj):
         order = np.argsort(F[:, obj])
+        f_min, f_max = F[order[0], obj], F[order[-1], obj]
+        # A degenerate objective (constant across the front — e.g. the unused
+        # third fitness placeholder) carries no diversity information. Skip it
+        # BEFORE marking boundaries, otherwise it would hand a spurious infinite
+        # crowding distance to whichever individuals sit first/last in index
+        # order, biasing selection.
+        if f_max == f_min:
+            continue
         sorted_front = [front[k] for k in order]
         cd[sorted_front[0]]  = float("inf")
         cd[sorted_front[-1]] = float("inf")
-        f_min, f_max = F[order[0], obj], F[order[-1], obj]
-        if f_max == f_min:
-            continue
         span = f_max - f_min
         for k in range(1, len(sorted_front) - 1):
             cd[sorted_front[k]] += (F[order[k+1], obj] - F[order[k-1], obj]) / span

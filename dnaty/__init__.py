@@ -45,7 +45,7 @@ Quick start:
     result2 = compress(other_model, other_data, warm_start="prior.json")
 """
 
-__version__ = "2.1.0"
+__version__ = "2.1.1"
 
 from dnaty.compress import compress, compress_cnn, compress_with_backbone, prune_conv_channels
 from dnaty.result import CompressResult, load

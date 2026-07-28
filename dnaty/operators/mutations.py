@@ -251,7 +251,10 @@ def duplicate_module(ind: Individual, noise_eps: float = 0.01) -> tuple[Individu
 
 
 def add_conv_block(ind: Individual) -> tuple[Individual, bool]:
-    """Op 9: insert a compact layer (half of last hidden) -- bottleneck that reduces FLOPs."""
+    """Op 9: append a narrow projection layer (half of last hidden) before the
+    classifier -- adds depth/capacity. Note: this slightly INCREASES FLOPs (a new
+    Linear is added); FLOPs pressure is handled by the NSGA-II fitness, which
+    keeps this operator only when the extra capacity pays for itself in accuracy."""
     sizes = list(ind.model.layer_sizes)
     acts = list(ind.model.activations)
     insert_size = max(16, sizes[-1] // 2)

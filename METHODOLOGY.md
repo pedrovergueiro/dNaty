@@ -1,6 +1,6 @@
 # dNATY: Technical Methodology
 
-**Version 2.1.0 · Pedro Vergueiro · 2026**
+**Version 2.1.1 · Pedro Vergueiro · 2026**
 
 This document describes the algorithmic design of dNATY for researchers evaluating the system. It answers the three questions a reviewer will ask: what the algorithm does, how it relates to prior work, and what the experiments actually claim.
 
@@ -215,7 +215,7 @@ Statistical test: paired t-test on BWT across 3 seeds (dNATY vs. EWC); p-value a
 
 ## 6. Reproducibility
 
-All experiments are seeded and deterministic. The pytest suite (142 tests) includes reproducibility regression tests gating every release. To reproduce:
+All experiments are seeded and deterministic. The pytest suite (155 tests) includes reproducibility regression tests gating every release. To reproduce:
 
 ```bash
 # NAS vs Random NAS (Experiment 1 mini-version)

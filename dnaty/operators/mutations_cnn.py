@@ -36,6 +36,35 @@ def _clone_cnn(ind: Individual) -> Individual:
     return new_ind
 
 
+def _copy_overlap(old_mod: nn.Module, new_mod: nn.Module) -> None:
+    """Copy the overlapping weight slices from old_mod into new_mod for every
+    matched Conv2d / Linear / BatchNorm submodule.
+
+    A shape-changing mutation (e.g. channel pruning) can then keep the trained
+    weights it still has room for instead of re-initialising the whole
+    sub-network at random -- which would make the mutated child train from
+    scratch in t_local epochs and almost always lose selection.
+    """
+    with torch.no_grad():
+        for old_m, new_m in zip(old_mod.modules(), new_mod.modules()):
+            if type(old_m) is not type(new_m):
+                continue
+            if isinstance(new_m, (nn.Conv2d, nn.Linear)):
+                o = min(old_m.weight.shape[0], new_m.weight.shape[0])
+                i = min(old_m.weight.shape[1], new_m.weight.shape[1])
+                new_m.weight[:o, :i].copy_(old_m.weight[:o, :i])
+                if old_m.bias is not None and new_m.bias is not None:
+                    new_m.bias[:o].copy_(old_m.bias[:o])
+            elif isinstance(new_m, (nn.BatchNorm1d, nn.BatchNorm2d)):
+                o = min(old_m.num_features, new_m.num_features)
+                if old_m.affine and new_m.affine:
+                    new_m.weight[:o].copy_(old_m.weight[:o])
+                    new_m.bias[:o].copy_(old_m.bias[:o])
+                if old_m.track_running_stats and new_m.track_running_stats:
+                    new_m.running_mean[:o].copy_(old_m.running_mean[:o])
+                    new_m.running_var[:o].copy_(old_m.running_var[:o])
+
+
 def add_conv_block(ind: Individual) -> tuple[Individual, bool]:
     """Op 9 REAL: add a Conv2D+BN+ReLU block after the last conv block."""
     model = ind.model
@@ -274,6 +303,24 @@ def prune_channels(ind: Individual) -> tuple[Individual, bool]:
 
     new_model = DynamicCNN(new_configs, list(model.fc_sizes), model.n_classes, model.in_channels)
     new_model = new_model.to(device)
+
+    # Preserve the trained weights. Unmodified blocks copy exactly; the pruned
+    # block (idx) and the block that consumes it (idx+1) keep the overlapping
+    # channel slice. Without this the whole net was re-initialised at random,
+    # so a pruned child could never survive t_local training -- crippling the
+    # single most important compression operator (also budget-boosted in
+    # CnnEvolver._mutate_population).
+    affected = {idx, idx + 1}
+    for i, (old_l, new_l) in enumerate(zip(model.conv_layers, new_model.conv_layers)):
+        if i in affected:
+            _copy_overlap(old_l, new_l)
+        else:
+            new_l.load_state_dict(old_l.state_dict())
+    # fc[0] input dim shrinks only when the LAST conv block was pruned; the
+    # overlap copy handles both that and the unchanged case. classifier input
+    # (last fc width) never changes, so it copies exactly.
+    _copy_overlap(model.fc, new_model.fc)
+    new_model.classifier.load_state_dict(model.classifier.state_dict())
 
     new_ind = Individual(new_model, deepcopy(ind.memory))
     new_ind.last_op = "prune_channels"
