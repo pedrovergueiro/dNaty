@@ -253,6 +253,61 @@ ImageNet-scale conv search.
 
 ---
 
+## New in 2.2.0 — Lifelong Edge
+
+### Adapt on-device instead of recompressing
+
+A model deployed on edge hardware drifts. `result.adapt()` learns from the new
+data without a cloud retrain and *measures* how much of the old distribution it
+kept, instead of assuming:
+
+```python
+result = compress(model, ds, target_flops=0.5)
+
+# Later, on-device, when your monitoring flags drift:
+metrics = result.adapt(new_x, new_y)
+metrics["acc_after"]        # accuracy on the drifted batch after adapting
+metrics["retention_after"]  # accuracy still held on replayed *old* data
+```
+
+Under the hood: a bounded reservoir replay buffer (every sample ever seen has
+equal odds of being retained) mixes past data 1:1 into each adaptation, and the
+lowest-utility hidden units are reborn first — continual-backprop-style reinit
+(Dohare et al., Nature 2024) with zeroed outgoing weights, so reborn units start
+silent and no random noise enters the model. `effective_rank()` and
+`PlasticityController` are exposed for monitoring rank collapse over months of
+deployment.
+
+### The search learns *how* to search
+
+v2.1.0 transferred *what worked* (operator priors). v2.2.0 adds a meta-learned
+controller that learns *when*: a contextual bandit sees the search state
+(progress, best accuracy, size trend, stagnation) and predicts which mutation
+helps **now**, learning from every outcome — harmful mutations included:
+
+```python
+r1 = compress(model_a, data_a, controller=True)
+r2 = compress(model_b, data_b, controller=True,
+              controller_policy=r1.controller_policy)  # warm "how-to-search"
+```
+
+The controller is blended with the episodic memory under a trust weight that
+grows with evidence — cold start behaves exactly like classic dNATY. Validated
+by unit/functional tests (context-dependent operator choice is verifiably
+learned); large-scale speedup benchmarks are future work, not a claim.
+
+### Federated prior merging (research preview)
+
+Multiple devices, one consensus prior — sharing mutation statistics, never data:
+
+```python
+from dnaty import merge_priors
+consensus = merge_priors([prior_cam_1, prior_cam_2, prior_cam_3])
+result = compress(model, ds, warm_start=consensus)
+```
+
+---
+
 ## Scope, stated plainly
 
 **Strong:** MLPs on tabular/sensor data; classifier heads on frozen CNN/ViT backbones; CPU-only environments.
@@ -294,7 +349,7 @@ dNaty/
 │   ├── utils/flops_counter.py   # count_flops, flops_by_layer
 │   └── experiments/fast_dataset.py  # zero-I/O MNIST/FashionMNIST/CIFAR10 loader
 ├── scripts/                     # prove_it.py, warm_start_demo.py, benchmark_market_real.py, ...
-└── tests/                       # pytest suite (155 tests) — gates every release
+└── tests/                       # pytest suite (204 tests) — gates every release
 ```
 
 ---

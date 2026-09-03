@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dnaty"
-version = "2.1.1"
+version = "2.2.0"
 description = "Evolutionary Neural Architecture Search -- compress any PyTorch model with one function call"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -41,6 +41,15 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0.0", "matplotlib>=3.7.0", "jupyter"]
+# Latency measurement / ONNX export / GBM latency surrogate — optional at
+# runtime (helpful ImportError without them), required by the full test suite.
+edge = [
+  "onnx>=1.16.0",
+  "onnxruntime>=1.18.0",
+  "onnxscript>=0.1.0",
+  "lightgbm>=4.3.0",
+  "scikit-learn>=1.4.0",
+]
 
 [project.urls]
 Homepage     = "https://github.com/pedrovergueiro/dNaty"

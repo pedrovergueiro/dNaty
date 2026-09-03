@@ -151,6 +151,8 @@ def compress(
     val_data=None,
     warm_start=None,
     warm_start_weight: float = 2.0,
+    controller: bool = False,
+    controller_policy=None,
 ) -> CompressResult:
     """
     Find a smaller, faster architecture for the same task using evolutionary NAS.
@@ -209,6 +211,16 @@ def compress(
                            (inverse-temperature). 0 = ignore, 1 = gentle,
                            2 = default, >=4 = aggressive. Ignored if warm_start
                            is None.
+        controller:        When True, a meta-learned contextual bandit
+                           (v2.2.0) predicts which mutation helps in the
+                           current search state and is blended with the
+                           episodic-memory softmax. The learned policy comes
+                           back on `result.controller_policy` for reuse.
+        controller_policy: Policy dict (or JSON path) from a previous run's
+                           `result.controller_policy` — warm-starts *how to
+                           search*, complementing warm_start (which transfers
+                           *what worked*). Implies nothing unless
+                           controller=True.
 
     Returns:
         CompressResult with the best model found and all compression metrics.
@@ -249,6 +261,8 @@ def compress(
             val_data=val_data,
             warm_start=warm_start,
             warm_start_weight=warm_start_weight,
+            controller=controller,
+            controller_policy=controller_policy,
         )
         if sparsity:
             result = _apply_sparsity(result, sparsity, verbose)
@@ -288,6 +302,8 @@ def compress(
         lambda2=lambda2,
         warm_start=warm_start,
         warm_start_weight=warm_start_weight,
+        controller=controller,
+        controller_policy=controller_policy,
     )
 
     orig_flops  = sum(2 * layer_sizes[i] * layer_sizes[i + 1] for i in range(len(layer_sizes) - 1))
@@ -364,6 +380,7 @@ def compress(
         arch=arch,
         pareto_front=pareto_front,
         operator_priors=operator_priors,
+        controller_policy=evolver.export_policy() if controller else {},
     )
     if result.model_grew:
         if input_size >= 100:
@@ -424,6 +441,8 @@ def _compress_latency(
     val_data=None,
     warm_start=None,
     warm_start_weight: float = 2.0,
+    controller: bool = False,
+    controller_policy=None,
 ) -> CompressResult:
     """Internal: latency-aware NAS via LatencyEvolver."""
     import numpy as np
@@ -457,6 +476,8 @@ def _compress_latency(
         target_device=hw_target,
         warm_start=warm_start,
         warm_start_weight=warm_start_weight,
+        controller=controller,
+        controller_policy=controller_policy,
     )
 
     orig_flops  = sum(2 * layer_sizes[i] * layer_sizes[i + 1] for i in range(len(layer_sizes) - 1))
@@ -509,6 +530,7 @@ def _compress_latency(
         arch=arch,
         pareto_front=pareto_front,
         operator_priors=operator_priors,
+        controller_policy=evolver.export_policy() if controller else {},
     )
     _write_telemetry(result, hw_target=hw_target, input_size=input_size)
     return result
@@ -525,6 +547,8 @@ def compress_cnn(
     verbose: bool = True,
     seed: Optional[int] = None,
     progress_callback: Optional[Callable] = None,
+    controller: bool = False,
+    controller_policy=None,
 ) -> CompressResult:
     """
     Find a smaller, faster CNN architecture for image tasks using evolutionary NAS.
@@ -545,6 +569,10 @@ def compress_cnn(
         verbose:           Print generation-by-generation progress.
         seed:              Fix for reproducibility.
         progress_callback: Optional callable(log) called each generation.
+        controller:        Meta-learned search controller (v2.2.0) — see
+                           compress(). The learned policy comes back on
+                           `result.controller_policy`.
+        controller_policy: Warm-start policy from a previous controller run.
 
     Returns:
         CompressResult with the best CNN found and compression metrics.
@@ -597,6 +625,8 @@ def compress_cnn(
         device=device,
         verbose=verbose,
         lambda2=lambda2,
+        controller=controller,
+        controller_policy=controller_policy,
     )
 
     orig_flops  = model.count_flops() if hasattr(model, "count_flops") else 0
@@ -625,6 +655,7 @@ def compress_cnn(
         flops_reduction=flops_reduction,
         generations=n_generations,
         arch=[],
+        controller_policy=evolver.export_policy() if controller else {},
     )
     if result.model_grew:
         warnings.warn(

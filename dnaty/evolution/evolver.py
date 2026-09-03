@@ -64,6 +64,8 @@ class DnatyEvolver:
         proxy_oversample: int = 2,
         warm_start=None,
         warm_start_weight: float = 2.0,
+        controller=False,
+        controller_policy=None,
     ):
         self.n_pop = n_pop
         self.n_generations = n_generations
@@ -102,6 +104,25 @@ class DnatyEvolver:
             from dnaty.utils.proxies import ProxyEnsemble
             self._proxy_ensemble = ProxyEnsemble()
 
+        # Meta-learned search controller (v2.2.0): a contextual bandit that
+        # predicts which mutation helps in the current search state, blended
+        # with the episodic-memory softmax (trust grows with observations).
+        self._controller = None
+        self._ctrl_context = None
+        self._baseline_params: float | None = None
+        if controller:
+            from dnaty.evolution.controller import MetaController
+            if isinstance(controller, MetaController):
+                self._controller = controller
+            elif controller_policy is not None:
+                self._controller = MetaController.from_policy(controller_policy)
+            else:
+                self._controller = MetaController()
+            if verbose and self._controller.n_obs:
+                print(f"[controller] warm policy loaded — "
+                      f"{self._controller.n_obs} prior observations "
+                      f"(trust={self._controller.trust:.2f})")
+
     def _apply_warm_start(self, warm_start, weight: float) -> int:
         """Seed self.shared_memory from a prior (dict, path, or EpisodicMemory)."""
         from dnaty.core.memory import load_prior
@@ -122,6 +143,49 @@ class DnatyEvolver:
         """Return the current transferable operator prior (see EpisodicMemory.to_prior)."""
         return self.shared_memory.to_prior()
 
+    def export_policy(self) -> dict:
+        """Return the meta-controller's learned policy (v2.2.0).
+
+        Raises if the evolver was built without `controller=True`. Pass the
+        dict to a later `DnatyEvolver(controller=True, controller_policy=...)`
+        to transfer *how to search* across runs.
+        """
+        if self._controller is None:
+            raise ValueError("export_policy() requires controller=True")
+        return self._controller.to_policy()
+
+    def _controller_context(self):
+        """Search-state context for the meta-controller, from current history."""
+        import numpy as _np
+        from dnaty.evolution.controller import MetaController
+        gen = len(self.history) + 1
+        best_acc = max((ind.acc for ind in self.population), default=0.0)
+        if self.population and self._baseline_params:
+            mean_params = float(_np.mean([ind.count_params() for ind in self.population]))
+            param_ratio = mean_params / self._baseline_params
+        else:
+            param_ratio = 1.0
+        delta_grad = self.history[-1].delta_grad if self.history else 0.0
+        # Trailing generations without a best-accuracy improvement.
+        no_improve = 0
+        best_seen = -1.0
+        for log in self.history:
+            if log.best_acc > best_seen + 1e-4:
+                best_seen = log.best_acc
+                no_improve = 0
+            else:
+                no_improve += 1
+        return MetaController.make_context(
+            gen, self.n_generations, best_acc, param_ratio, delta_grad, no_improve
+        )
+
+    def _blend_probs(self, op_probs: dict[str, float]) -> dict[str, float]:
+        """Mix memory-softmax probs with the controller's contextual policy."""
+        if self._controller is None:
+            return op_probs
+        self._ctrl_context = self._controller_context()
+        return self._controller.blend(op_probs, self._ctrl_context)
+
     def _make_individual(self) -> Individual:
         sizes = [self.input_size] + self.init_hidden
         acts = ["relu"] * len(self.init_hidden)
@@ -140,6 +204,8 @@ class DnatyEvolver:
                 if not success or not mutant.model.is_valid():
                     mutant = seed.clone()
                 self.population.append(mutant)
+        # Size-trend reference for the meta-controller's context.
+        self._baseline_params = float(np.mean([ind.count_params() for ind in self.population]))
 
     def _fitness(self, ind: Individual) -> tuple[float, float, float]:
         # lambda2 controls FLOPs weight in Pareto selection:
@@ -186,6 +252,7 @@ class DnatyEvolver:
 
     def _mutate_population(self, population: list[Individual]) -> list[Individual]:
         op_probs = self.shared_memory.query_mutation_probs(OPERATORS, tau=self.memory_tau)
+        op_probs = self._blend_probs(op_probs)
         ops   = list(op_probs.keys())
         probs = list(op_probs.values())
         mutated = []
@@ -256,6 +323,12 @@ class DnatyEvolver:
                 parent_acc = ind.parent_acc
             else:
                 parent_acc = prev_accs[i] if i < len(prev_accs) else prev_best_acc
+            # The controller learns from every outcome, harmful mutations
+            # included — negative rewards are what teach it context-dependence.
+            if self._controller is not None and self._ctrl_context is not None:
+                self._controller.update(
+                    ind.last_op, self._ctrl_context, ind.acc - parent_acc
+                )
             if ind.acc > parent_acc + 1e-5:
                 exp = Experience(
                     operator=ind.last_op,
@@ -409,6 +482,7 @@ class CnnEvolver(DnatyEvolver):
                 total = sum(raw.values())
                 op_probs = {op: v / total for op, v in raw.items()}
 
+        op_probs = self._blend_probs(op_probs)
         ops   = list(op_probs.keys())
         probs = list(op_probs.values())
         mutated = []

@@ -49,6 +49,13 @@ class CompressResult:
     # to a later compress(..., warm_start=...) on a related task.
     operator_priors: dict = field(default_factory=dict)
 
+    # v2.2.0 --------------------------------------------------------------- #
+    # Meta-controller policy learned during the search (populated when
+    # compress(..., controller=True)). Pass it to a later
+    # compress(..., controller=True, controller_policy=...) to transfer *how
+    # to search* — complementary to operator_priors (*what worked*).
+    controller_policy: dict = field(default_factory=dict)
+
     @property
     def flops_reduction_pct(self) -> float:
         return self.flops_reduction * 100
@@ -256,6 +263,160 @@ class CompressResult:
         q = copy.copy(self)
         q.model = q_model
         return q
+
+    def adapt(
+        self,
+        new_x,
+        new_y,
+        epochs: int = 3,
+        lr: float = 1e-4,
+        batch_size: int = 256,
+        replay: bool = True,
+        replay_capacity: int = 2048,
+        plasticity: bool = True,
+        reinit_fraction: float = 0.05,
+        device: str = "cpu",
+        seed: "int | None" = None,
+    ) -> dict:
+        """Lifelong on-device adaptation (v2.2.0): learn from drifted data
+        without a full recompress and without forgetting the old distribution.
+
+        Three mechanisms, each optional:
+          replay      -- a bounded reservoir buffer keeps an unbiased sample of
+                         everything adapt() has seen; each adaptation trains on
+                         new data *mixed with* replayed old data, so the old
+                         distribution keeps applying pressure (anti-forgetting).
+          plasticity  -- before training, the lowest-utility hidden units are
+                         reborn (continual-backprop-style reinit with zeroed
+                         outgoing weights), freeing capacity for the new data.
+                         Reborn units start silent, so no random noise is
+                         injected; only the dormant units' negligible old
+                         contribution is dropped.
+          fine-tune   -- a few epochs of Adam at a low LR on the mixed batch.
+
+        Pairs naturally with monitoring:
+            if tracker.predict(batch)[1]["alert"]:
+                result.adapt(batch_x, batch_y)
+
+        Args:
+            new_x, new_y:    the drifted batch (tensor / numpy; y int labels).
+            epochs:          fine-tune epochs over the mixed data.
+            lr:              fine-tune learning rate.
+            replay:          mix in replayed old samples (1:1 with new data).
+            replay_capacity: reservoir size (first call only).
+            plasticity:      reinit dormant units before fine-tuning.
+            reinit_fraction: fraction of units per layer reborn.
+            seed:            seeds sampling + reinit for reproducibility.
+
+        Returns:
+            dict with acc_before/acc_after (on the new batch),
+            retention_before/retention_after (on replayed old data; None on
+            the first call), n_reborn, replay_size.
+        """
+        import numpy as _np
+        from dnaty.training.replay import ReplayBuffer
+        from dnaty.training.local_train import _bn_eval_if_tiny
+
+        if isinstance(new_x, torch.Tensor):
+            new_x = new_x.detach().cpu().float()
+        else:
+            new_x = torch.as_tensor(_np.asarray(new_x)).float()
+        if isinstance(new_y, torch.Tensor):
+            new_y = new_y.detach().cpu().long()
+        else:
+            new_y = torch.as_tensor(_np.asarray(new_y)).long()
+        if len(new_x) != len(new_y):
+            raise ValueError(f"x and y disagree: {len(new_x)} vs {len(new_y)}")
+        if len(new_x) == 0:
+            raise ValueError("adapt() needs at least one sample")
+
+        if not hasattr(self, "_replay_buffer") or self._replay_buffer is None:
+            self._replay_buffer = ReplayBuffer(capacity=replay_capacity, seed=seed)
+        if not hasattr(self, "adapt_history"):
+            self.adapt_history = []
+
+        model = self.model.to(device)
+
+        def _acc(x: torch.Tensor, y: torch.Tensor) -> float:
+            was_training = model.training
+            model.eval()
+            correct = 0
+            with torch.inference_mode():
+                for i in range(0, len(x), 1024):
+                    out = model(x[i:i + 1024].to(device))
+                    correct += (out.argmax(dim=1) == y[i:i + 1024].to(device)).sum().item()
+            model.train(was_training)
+            return correct / len(x)
+
+        acc_before = _acc(new_x, new_y)
+
+        # Draw the replay sample BEFORE ingesting the new batch, so it is a
+        # sample of the *past* — that is what retention is measured against.
+        old_x = old_y = None
+        if replay and len(self._replay_buffer) > 0:
+            old_x, old_y = self._replay_buffer.sample(len(new_x))
+        retention_before = _acc(old_x, old_y) if old_x is not None else None
+
+        n_reborn = 0
+        if plasticity and reinit_fraction > 0:
+            from dnaty.training.plasticity import NeuronUtilityTracker, reinit_dormant
+            try:
+                tracker = NeuronUtilityTracker(model)
+                was_training = model.training
+                model.eval()
+                try:
+                    for i in range(0, min(len(new_x), 1024), 256):
+                        tracker.update(new_x[i:i + 256].to(device))
+                finally:
+                    model.train(was_training)
+                n_reborn = reinit_dormant(
+                    model, tracker.dormant_mask(reinit_fraction), seed=seed
+                )
+            except TypeError:
+                pass  # not a DynamicMLP (e.g. quantized/custom) — skip reinit
+
+        # Fine-tune on new data mixed 1:1 with replayed old data.
+        if old_x is not None:
+            train_x = torch.cat([new_x, old_x])
+            train_y = torch.cat([new_y, old_y])
+        else:
+            train_x, train_y = new_x, new_y
+
+        gen = torch.Generator()
+        if seed is not None:
+            gen.manual_seed(seed)
+        model.train()
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+        criterion = nn.CrossEntropyLoss()
+        for _ in range(epochs):
+            perm = torch.randperm(len(train_x), generator=gen)
+            for i in range(0, len(perm), batch_size):
+                idx = perm[i:i + batch_size]
+                xb = train_x[idx].to(device)
+                yb = train_y[idx].to(device)
+                optimizer.zero_grad(set_to_none=True)
+                with _bn_eval_if_tiny(model, xb.size(0)):
+                    loss = criterion(model(xb), yb)
+                loss.backward()
+                optimizer.step()
+        model.eval()
+
+        self._replay_buffer.add_batch(new_x, new_y)
+
+        metrics = {
+            "acc_before": round(acc_before, 4),
+            "acc_after": round(_acc(new_x, new_y), 4),
+            "retention_before": (
+                None if retention_before is None else round(retention_before, 4)
+            ),
+            "retention_after": (
+                None if old_x is None else round(_acc(old_x, old_y), 4)
+            ),
+            "n_reborn": n_reborn,
+            "replay_size": len(self._replay_buffer),
+        }
+        self.adapt_history.append(metrics)
+        return metrics
 
     def export_onnx(self, path: str, input_shape: tuple) -> None:
         """Export the compressed model to ONNX for CPU deployment (drones, cameras, robots).

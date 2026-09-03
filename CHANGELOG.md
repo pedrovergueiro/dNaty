@@ -2,6 +2,87 @@
 
 All notable changes to dNATY are documented here.
 
+## [2.2.0] - 2026-09-03 — Lifelong Edge: plasticity, meta-controller, adapt API
+
+Implements the locally-verifiable pillars of the v3.0 roadmap ("Lifelong").
+No breaking changes — every new parameter and field is optional with a
+backward-compatible default; with all new flags off, search behaviour is
+byte-for-byte unchanged.
+
+### Added
+
+- **Plasticity preservation** (`dnaty.training.plasticity`). Deep nets trained
+  continually lose the ability to learn ("plasticity loss", Dohare et al.,
+  Nature 2024). The continual-backprop remedy, adapted to DynamicMLP:
+  - `NeuronUtilityTracker` — EMA of |activation| × ‖outgoing weights‖ per
+    hidden unit (contribution utility); survives architecture mutations by
+    restarting cleanly.
+  - `reinit_dormant()` — the lowest-utility units get fresh Kaiming incoming
+    weights, a reset BatchNorm channel, and **zeroed outgoing columns** — the
+    reborn unit is silent, so no random noise is injected (the post-reinit
+    model equals the pre-reinit model with the dormant unit ablated; tested
+    to 1e-6). Skip-projection columns are zeroed too.
+  - `effective_rank()` — entropy-based effective rank (Roy & Vetterli) of a
+    hidden feature matrix, to monitor rank collapse over a deployment.
+  - `PlasticityController` — orchestrates observe → scheduled reinit and
+    records the rank history.
+
+- **Lifelong on-device adaptation** — `result.adapt(new_x, new_y)`. Learn from
+  drifted data without a full recompress and without wiping the old
+  distribution: a bounded **reservoir replay buffer**
+  (`dnaty.training.replay.ReplayBuffer` — every sample ever seen has equal
+  probability of being retained, O(capacity) memory) mixes past data 1:1 into
+  each adaptation, and dormant units are reborn first to free capacity.
+  Returns acc_before/after on the new batch **and** retention_before/after on
+  replayed old data, so forgetting is measured, not assumed. Pairs with
+  `ProductionTracker`: adapt when the drift alert fires.
+
+- **Meta-learned search controller** (`dnaty.evolution.controller`,
+  `compress(..., controller=True)`). The episodic memory scores operators
+  context-free; the `MetaController` (LinUCB contextual bandit, pure numpy,
+  Sherman-Morrison O(d²) updates) additionally sees the *search state* —
+  progress, best accuracy, size trend, gradient signal, stagnation — and
+  predicts each mutation's expected improvement there, learning from every
+  outcome including harmful mutations. Its policy is **blended** with the
+  memory softmax under a trust weight that grows with observations, so cold
+  start behaves exactly like classic dNATY. The learned policy is a compact
+  JSON dict (`result.controller_policy`, `evolver.export_policy()`) that
+  warm-starts a later run via `controller_policy=` — transferring *how to
+  search*, complementary to v2.1.0 operator priors (*what worked*). Works in
+  every evolver, `CnnEvolver` and `LatencyEvolver` included.
+
+- **Federated prior merging** (research preview) —
+  `dnaty.merge_priors(priors, weights=None)`. Aggregates operator priors from
+  multiple runs/devices into one consensus prior without any raw data changing
+  hands (devices share mutation statistics only). Each prior is mean-centred
+  and unit-normalised before averaging, so a long run does not drown out a
+  short one and each prior votes on *relative* operator preference. Output
+  feeds straight into `compress(..., warm_start=merged)`.
+
+### Fixed
+
+- **Undeclared test dependencies.** onnx/onnxruntime/onnxscript/lightgbm/
+  scikit-learn were required by the latency, export and telemetry test paths
+  but declared nowhere — a rebuilt environment silently failed 7 tests. Now in
+  `requirements-dev.txt` and as the `dnaty[edge]` extra; the library still
+  degrades gracefully without them at runtime.
+
+### Notes
+
+- 40 new tests in `tests/test_v2_2_0.py` (function-silence of reinit, rank
+  collapse detection, reservoir statistics, retention measurement, LinUCB
+  context-dependence, policy round-trip, federated merge semantics, E2E
+  `compress(controller=True)`). Algorithm suite: 185 passed, 1 skipped;
+  204 tests collected in the full suite.
+- `scripts/lifelong_adapt_demo.py` — measure the adapt() trade-off yourself:
+  frozen vs naive fine-tune vs adapt() over a 4-phase synthetic drift; adapt()
+  yields the best worst-case accuracy across old and new distributions.
+- Honest scope: the controller and plasticity machinery are validated by unit
+  and small-scale functional tests; no claim is made about large-scale search
+  speedups until benchmarked.
+
+---
+
 ## [2.1.1] - 2026-07-27 — Bug-hunt release: algorithm correctness fixes
 
 No API changes. `lambda1`/`lambda2` remain in `local_train`'s signature for

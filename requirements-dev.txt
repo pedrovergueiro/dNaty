@@ -9,3 +9,11 @@ httpx>=0.25.0
 black>=23.0.0
 flake8>=6.0.0
 mypy>=1.5.0
+
+# Optional at runtime (the library degrades gracefully without them), but the
+# test suite exercises these paths, so dev installs need them:
+onnx>=1.16.0
+onnxruntime>=1.18.0
+onnxscript>=0.1.0     # torch>=2.6 dynamo ONNX exporter
+lightgbm>=4.3.0       # latency predictor GBM surrogate
+scikit-learn>=1.4.0   # lightgbm sklearn API

@@ -167,6 +167,76 @@ def save_prior(prior: dict, path: str) -> None:
         json.dump(prior, f, indent=2, sort_keys=True)
 
 
+def merge_priors(priors: list[dict], weights: list[float] | None = None) -> dict:
+    """Federated aggregation of operator priors (v2.2.0, research preview).
+
+    Multiple runs — different devices, tasks, or users — each export a
+    transferable prior (`EpisodicMemory.to_prior()`). This merges them into
+    one consensus prior *without any raw data changing hands*: only the
+    per-operator success statistics are shared, exactly the federated-evolution
+    contract (devices share mutation statistics, not data).
+
+    Each prior is normalised the same way `seed_from_prior` does (mean-centred,
+    unit max-magnitude), so a long run does not drown out a short one; the
+    normalised scores are then averaged, optionally weighted (e.g. by how much
+    you trust each source). Degenerate priors (empty, or every operator scored
+    identically) are skipped.
+
+    Args:
+        priors:  list of dicts from `to_prior()` / `load_prior()` (bare
+                 {op: score} mappings also accepted).
+        weights: optional per-prior weights (default: uniform). Normalised
+                 internally; must match len(priors).
+
+    Returns:
+        dict in the standard prior format, with "merged_from" = number of
+        priors that actually contributed. Feed it straight into
+        `compress(..., warm_start=merged)` or `seed_from_prior(merged)`.
+    """
+    if weights is not None and len(weights) != len(priors):
+        raise ValueError(
+            f"got {len(weights)} weights for {len(priors)} priors"
+        )
+    if weights is None:
+        weights = [1.0] * len(priors)
+
+    merged: dict[str, float] = {}
+    total_w = 0.0
+    n_used = 0
+    n_experiences = 0
+    for prior, w in zip(priors, weights):
+        scores = prior.get("scores", prior) if isinstance(prior, dict) else {}
+        if not scores or w <= 0:
+            continue
+        ops = list(scores.keys())
+        vals = np.array([float(scores[op]) for op in ops], dtype=np.float64)
+        vals = vals - vals.mean()
+        max_abs = np.abs(vals).max()
+        if max_abs < 1e-12:
+            continue  # no usable signal in this prior
+        vals = vals / max_abs
+        for op, v in zip(ops, vals):
+            merged[op] = merged.get(op, 0.0) + float(w) * float(v)
+        total_w += float(w)
+        n_used += 1
+        n_experiences += int(prior.get("n_experiences", 0)) if isinstance(prior, dict) else 0
+
+    if n_used == 0:
+        raise ValueError("no usable priors to merge (all empty or degenerate)")
+
+    return {
+        "format": "dnaty.operator_prior",
+        "version": PRIOR_FORMAT_VERSION,
+        "gamma": float(np.mean([
+            p.get("gamma", 0.99) for p in priors
+            if isinstance(p, dict) and p.get("scores")
+        ]) if any(isinstance(p, dict) and p.get("scores") for p in priors) else 0.99),
+        "n_experiences": n_experiences,
+        "merged_from": n_used,
+        "scores": {op: v / total_w for op, v in merged.items()},
+    }
+
+
 def load_prior(path: str) -> dict:
     """Load an operator prior previously written with `save_prior()`."""
     with open(path, "r", encoding="utf-8") as f:
