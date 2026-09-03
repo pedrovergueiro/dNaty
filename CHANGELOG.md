@@ -61,6 +61,19 @@ byte-for-byte unchanged.
 
 ### Fixed
 
+- **CUDA/AMP crash: NaN operator probabilities.** On GPU, `local_train` runs
+  under mixed precision; an AMP gradient overflow reports an **inf** unscaled
+  gradient norm (GradScaler skips that optimizer step, but the metric summed
+  it anyway). The inf flowed into `Experience.impact` → episodic-memory
+  scores → `inf - inf = NaN` in the operator softmax →
+  `ValueError: probabilities contain NaN` from `np.random.choice`, killing
+  the whole `compress()` call. Never reproduced on CPU (AMP is a no-op
+  there), found on first CUDA run. Fixed at every layer: the overflow step's
+  grad-norm contribution is skipped, `Experience.impact` rejects non-finite
+  inputs, the memory softmax and `seed_from_prior` sanitize non-finite
+  scores, and the meta-controller drops non-finite observations and
+  sanitizes its context vector. 5 regression tests.
+
 - **Undeclared test dependencies.** onnx/onnxruntime/onnxscript/lightgbm/
   scikit-learn were required by the latency, export and telemetry test paths
   but declared nowhere — a rebuilt environment silently failed 7 tests. Now in

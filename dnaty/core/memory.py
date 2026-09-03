@@ -28,7 +28,15 @@ class Experience:
 
     @property
     def impact(self) -> float:
-        """1[dL < 0] * |dL| * ||grad_L|| -- only experiences that improved."""
+        """1[dL < 0] * |dL| * ||grad_L|| -- only experiences that improved.
+
+        Non-finite inputs contribute nothing: on CUDA, an AMP overflow can
+        report an inf gradient norm (or a diverged NaN loss delta), and a
+        single inf/NaN entering the accumulated scores turns the operator
+        softmax into NaN probabilities, crashing the search.
+        """
+        if not (np.isfinite(self.delta_loss) and np.isfinite(self.gradient_norm)):
+            return 0.0
         if self.delta_loss >= 0:
             return 0.0
         return abs(self.delta_loss) * self.gradient_norm
@@ -84,6 +92,9 @@ class EpisodicMemory:
         vals = np.array(
             [self._scores.get(op, 0.0) for op in operators], dtype=np.float64
         ) / max(tau, 1e-8)
+        # Belt-and-braces: a non-finite score (e.g. persisted before the
+        # Experience.impact guard existed) must not poison the softmax.
+        vals = np.where(np.isfinite(vals), vals, 0.0)
         vals -= vals.max()
         exp_vals = np.exp(vals)
         probs = exp_vals / exp_vals.sum()
@@ -147,6 +158,7 @@ class EpisodicMemory:
             return 0
         ops = list(scores.keys())
         vals = np.array([float(scores[op]) for op in ops], dtype=np.float64)
+        vals = np.where(np.isfinite(vals), vals, 0.0)  # inf/NaN = no signal
         vals = vals - vals.mean()
         max_abs = np.abs(vals).max()
         if max_abs < 1e-12:

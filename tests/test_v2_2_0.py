@@ -459,6 +459,56 @@ class TestMergePriors:
 
 
 # ---------------------------------------------------------------------------
+# Non-finite guards (GPU/AMP hardening)
+# ---------------------------------------------------------------------------
+
+class TestNonFiniteGuards:
+    """On CUDA, an AMP gradient overflow reports inf grad norms (and a
+    diverged loss reports NaN deltas). One such value entering the episodic
+    memory used to turn the operator softmax into NaN probabilities and crash
+    np.random.choice mid-search. Every entry point is now guarded."""
+
+    def test_experience_impact_rejects_non_finite(self):
+        from dnaty.core.memory import Experience
+        assert Experience("op", float("nan"), 1.0, 0).impact == 0.0
+        assert Experience("op", -0.5, float("inf"), 0).impact == 0.0
+        assert Experience("op", float("-inf"), 1.0, 0).impact == 0.0
+        assert Experience("op", -0.5, 2.0, 0).impact == 1.0  # sane path intact
+
+    def test_memory_softmax_survives_poisoned_scores(self):
+        mem = EpisodicMemory()
+        mem._scores = {"op_a": float("inf"), "op_b": float("nan"), "op_c": 1.0}
+        probs = mem.query_mutation_probs(["op_a", "op_b", "op_c"])
+        vals = np.array(list(probs.values()))
+        assert np.all(np.isfinite(vals))
+        assert vals.sum() == pytest.approx(1.0)
+
+    def test_seed_from_prior_ignores_non_finite_scores(self):
+        mem = EpisodicMemory()
+        n = mem.seed_from_prior(
+            {"scores": {"op_a": float("inf"), "op_b": float("nan")}}
+        )
+        assert n == 0  # both sanitized to 0 -> degenerate -> no seeding
+        probs = mem.query_mutation_probs(["op_a", "op_b"])
+        assert all(np.isfinite(v) for v in probs.values())
+
+    def test_controller_drops_non_finite_observations(self):
+        ctrl = MetaController(warmup=1)
+        good = MetaController.make_context(1, 10, 0.5, 1.0, 0.1, 0)
+        ctrl.update("op_a", good, float("nan"))
+        assert ctrl.n_obs == 0
+        bad_ctx = good.copy(); bad_ctx[3] = float("inf")
+        ctrl.update("op_a", bad_ctx, 0.1)
+        assert ctrl.n_obs == 0
+        ctrl.update("op_a", good, 0.1)
+        assert ctrl.n_obs == 1
+
+    def test_make_context_sanitizes_nan_delta_grad(self):
+        ctx = MetaController.make_context(1, 10, 0.5, 1.0, float("nan"), 0)
+        assert np.all(np.isfinite(ctx))
+
+
+# ---------------------------------------------------------------------------
 # End-to-end: compress(controller=True)
 # ---------------------------------------------------------------------------
 

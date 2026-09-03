@@ -89,7 +89,7 @@ class MetaController:
           training-loss drop, stagnation fraction.
         """
         ratio = float(np.clip(np.log(max(param_ratio, 1e-8)), -1.0, 1.0))
-        return np.array(
+        ctx = np.array(
             [
                 1.0,
                 min(gen / max(n_generations, 1), 1.0),
@@ -100,6 +100,9 @@ class MetaController:
             ],
             dtype=np.float64,
         )
+        # A NaN anywhere (e.g. a diverged training loss feeding delta_grad)
+        # would poison the ridge matrices permanently — sanitize.
+        return np.nan_to_num(ctx, nan=0.0, posinf=1.0, neginf=-1.0)
 
     # ------------------------------------------------------------------ #
     # Bandit                                                              #
@@ -131,9 +134,15 @@ class MetaController:
         return {op: float(v) for op, v in zip(operators, p)}
 
     def update(self, op: str, context: np.ndarray, reward: float) -> None:
-        """Observe (context, operator) -> reward. Sherman-Morrison, O(d^2)."""
+        """Observe (context, operator) -> reward. Sherman-Morrison, O(d^2).
+
+        Non-finite observations are dropped — one NaN/inf would corrupt the
+        per-operator ridge state for the rest of the run.
+        """
         self._ensure(op)
         x = np.asarray(context, dtype=np.float64)
+        if not (np.isfinite(reward) and np.all(np.isfinite(x))):
+            return
         A_inv = self._A_inv[op]
         Ax = A_inv @ x
         denom = 1.0 + float(x @ Ax)

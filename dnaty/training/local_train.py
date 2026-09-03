@@ -147,7 +147,13 @@ def local_train(
                     (p.grad.norm().pow(2) for p in model.parameters() if p.grad is not None),
                     torch.tensor(0.0, device=device),
                 )
-                total_grad_sq += gn_sq.item()
+                gn_sq_val = gn_sq.item()
+                # AMP overflow makes the unscaled grads inf/NaN; GradScaler
+                # skips that optimizer step, so skip its contribution to the
+                # metric too — one inf here would make mean_grad_norm inf and
+                # poison the episodic-memory scores downstream.
+                if np.isfinite(gn_sq_val):
+                    total_grad_sq += gn_sq_val
 
             scaler.step(optimizer)
             scaler.update()
