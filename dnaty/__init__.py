@@ -59,7 +59,7 @@ Quick start:
     result = compress(model, ds, warm_start=consensus)
 """
 
-__version__ = "2.2.0"
+__version__ = "2.2.1"
 
 from dnaty.compress import compress, compress_cnn, compress_with_backbone, prune_conv_channels
 from dnaty.result import CompressResult, load

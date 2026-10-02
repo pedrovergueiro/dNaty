@@ -2,6 +2,46 @@
 
 All notable changes to dNATY are documented here.
 
+## [2.2.1] - 2026-10-02 — compress_with_backbone fixes; first PyPI release of 2.2
+
+2.2.0 (below) was finalized in the repository but never published to PyPI.
+2.2.1 is the first public release of the 2.2 line: everything in 2.2.0, plus the
+fixes below.
+
+### Fixed
+
+- **`compress_with_backbone()` returned a model that did not match its reported
+  accuracy.** The compressed head was trained on z-scored embeddings, but the model
+  handed back fed it raw backbone features. On a reproduction with offset features
+  (as after a real CNN's ReLU) the returned model predicted at chance — 0.26 on four
+  classes — while reporting 0.85. The z-score (training mean/std) is now part of the
+  spliced head (`StandardizedHead`; buffers, so it moves with `.to()`, lives in
+  `state_dict()` and stays frozen while fine-tuning).
+- **`compress_with_backbone()` crashed on heads that are an `nn.Sequential`** —
+  MobileNetV2 and EfficientNet (`Dropout` + `Linear`), the README example included.
+  The compressed `DynamicMLP` was unpacked into an `nn.Sequential`, which dropped its
+  skip connections and called its `ModuleList` of projections (`NotImplementedError`).
+  It is now spliced as a module.
+- Only the **leading Dropouts** of the original head are kept. Activations between
+  Linears (MobileNetV3's `Hardswish`) were applied to features the compressed head
+  never saw during the search.
+- **The reported accuracy is the returned model's**, in eval mode. It was the head's
+  accuracy on the training embeddings, or the running train accuracy of the last
+  fine-tune epoch.
+- **`compress(model, numpy_array)` crashed when pandas was not installed** (pandas is
+  not a dependency). The numpy and pandas checks shared one `try`, so a missing
+  pandas let the array through unconverted and the search failed with "too many
+  values to unpack".
+
+### Added
+
+- `compress_with_backbone(..., val_data=...)` — held-out loader of images. Its
+  embeddings (z-scored with the *training* statistics) drive NAS selection, and the
+  reported accuracy is measured on it, as in `compress()`.
+
+8 regression tests in `tests/test_compress_with_backbone.py`, 1 in
+`tests/test_v2_missing.py`; 218 tests collected in the full suite.
+
 ## [2.2.0] - 2026-09-03 — Lifelong Edge: plasticity, meta-controller, adapt API
 
 Implements the locally-verifiable pillars of the v3.0 roadmap ("Lifelong").
@@ -82,11 +122,11 @@ byte-for-byte unchanged.
 
 ### Notes
 
-- 40 new tests in `tests/test_v2_2_0.py` (function-silence of reinit, rank
+- 45 new tests in `tests/test_v2_2_0.py` (function-silence of reinit, rank
   collapse detection, reservoir statistics, retention measurement, LinUCB
   context-dependence, policy round-trip, federated merge semantics, E2E
-  `compress(controller=True)`). Algorithm suite: 185 passed, 1 skipped;
-  204 tests collected in the full suite.
+  `compress(controller=True)`, and 5 for the CUDA/AMP fix). Algorithm suite:
+  185 passed, 1 skipped; 209 tests collected in the full suite.
 - `scripts/lifelong_adapt_demo.py` — measure the adapt() trade-off yourself:
   frozen vs naive fine-tune vs adapt() over a 4-phase synthetic drift; adapt()
   yields the best worst-case accuracy across old and new distributions.

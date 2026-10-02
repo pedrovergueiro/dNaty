@@ -135,3 +135,60 @@ def _split_backbone_head(
         )
 
     return feat_model, feature_dim, n_classes
+
+
+class StandardizedHead(nn.Module):
+    """The NAS-compressed head as compress_with_backbone splices it onto a backbone.
+
+    The head is trained on z-scored embeddings, so the z-score is part of the head:
+    without it the spliced model receives raw backbone features the head never saw.
+    `mean`/`std` are buffers, so they move with `.to()`, live in `state_dict()` and
+    stay frozen during end-to-end fine-tuning.
+
+    `pre` holds only the leading Dropout modules of the original head (identity at
+    eval time, regularisation while fine-tuning). Anything else in the original head
+    (LayerNorm, activations between Linears) is dropped on purpose: the embeddings
+    were extracted with the whole head replaced by Identity, so the compressed head
+    must see exactly that input.
+    """
+
+    def __init__(self, head: nn.Module, mean: torch.Tensor, std: torch.Tensor,
+                 pre: tuple = ()) -> None:
+        super().__init__()
+        self.pre = nn.Sequential(*pre)
+        self.register_buffer("mean", mean.detach().clone().float())
+        self.register_buffer("std", std.detach().clone().float())
+        self.head = head
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.pre(x)
+        if x.ndim > 2:
+            x = x.flatten(1)
+        return self.head((x - self.mean) / self.std)
+
+
+def _leading_dropouts(head: nn.Module) -> tuple:
+    """The Dropout modules an original classifier applies before its first Linear."""
+    if not isinstance(head, nn.Sequential):
+        return ()
+    kept = []
+    for module in head.children():
+        if not isinstance(module, nn.modules.dropout._DropoutNd):
+            break
+        kept.append(module)
+    return tuple(kept)
+
+
+def _loader_accuracy(model: nn.Module, loader, device: str) -> float:
+    """Top-1 accuracy of `model` over (inputs, labels) batches, in eval mode."""
+    was_training = model.training
+    model.eval()
+    correct = total = 0
+    with torch.no_grad():
+        for batch in loader:
+            xb, yb = batch[0].to(device), batch[1]
+            yb = yb.to(device) if isinstance(yb, torch.Tensor) else torch.tensor(yb, device=device)
+            correct += (model(xb).argmax(dim=1) == yb).sum().item()
+            total += len(yb)
+    model.train(was_training)
+    return correct / max(total, 1)

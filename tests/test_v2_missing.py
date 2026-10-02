@@ -151,6 +151,19 @@ def test_compress_accepts_numpy_array_last_col_label():
     assert 0 <= result.accuracy <= 1
 
 
+def test_compress_accepts_numpy_array_without_pandas(monkeypatch):
+    """pandas is optional: without it a numpy array used to pass through unconverted."""
+    monkeypatch.setitem(sys.modules, "pandas", None)  # `import pandas` -> ImportError
+    from dnaty.compress import _maybe_convert_data
+    X, y = _numpy_data()
+
+    loader = _maybe_convert_data(np.column_stack([X, y]))
+    xb, yb = next(iter(loader))
+
+    assert isinstance(loader, DataLoader)
+    assert xb.shape[1] == 20 and yb.dtype == torch.int64
+
+
 def test_compress_accepts_dataframe():
     pytest.importorskip("pandas")
     import pandas as pd

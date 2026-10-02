@@ -29,6 +29,15 @@ from dnaty._compress_helpers import (
 )
 
 
+def _is_dataframe(obj) -> bool:
+    """pandas is optional: without it nothing is a DataFrame."""
+    try:
+        import pandas as pd
+    except ImportError:
+        return False
+    return isinstance(obj, pd.DataFrame)
+
+
 def _maybe_convert_data(train_data):
     """Convert numpy arrays, pandas DataFrames, or (X, y) tuples to DataLoader."""
     # Already a DataLoader or FastDataset — pass through
@@ -36,13 +45,12 @@ def _maybe_convert_data(train_data):
     if isinstance(train_data, DataLoader):
         return train_data
     if hasattr(train_data, "__iter__") and not isinstance(train_data, tuple):
-        # FastDataset or any other iterable (not a plain tuple)
-        try:
-            import numpy as np
-            import pandas as pd
-            if not isinstance(train_data, (np.ndarray, pd.DataFrame)):
-                return train_data
-        except ImportError:
+        # FastDataset or any other iterable (not a plain tuple). numpy is a hard
+        # dependency and pandas is not: checking both in one try made a numpy
+        # array pass through unconverted whenever pandas was missing, and the
+        # search then crashed with "too many values to unpack".
+        import numpy as np
+        if not isinstance(train_data, np.ndarray) and not _is_dataframe(train_data):
             return train_data
 
     import numpy as np
@@ -686,6 +694,7 @@ def compress_with_backbone(
     n_classes: Optional[int] = None,
     batch_size: int = 64,
     progress_callback: Optional[Callable] = None,
+    val_data=None,
 ) -> CompressResult:
     """
     Compress the classifier head of a CNN backbone using evolutionary NAS.
@@ -694,8 +703,11 @@ def compress_with_backbone(
     This function handles CNNs correctly without hiding that constraint:
 
       1. Freeze the backbone, extract embeddings in one pass (no training).
-      2. Run NAS to find a compressed MLP head on those embeddings.
-      3. Splice the compressed head back onto the original backbone.
+      2. Run NAS to find a compressed MLP head on those embeddings, z-scored with
+         the training mean/std.
+      3. Splice the compressed head back onto the original backbone, z-score
+         included (see `StandardizedHead`), so the returned model sees exactly
+         what the head was trained on.
       4. (optional) Fine-tune the full model end-to-end to recover any accuracy gap.
 
     Supports ResNet (fc), MobileNetV2/EfficientNet (classifier), ViT (head/heads),
@@ -716,10 +728,16 @@ def compress_with_backbone(
         n_classes:          Override auto-detected number of classes.
         batch_size:         Batch size for feature extraction and fine-tuning.
         progress_callback:  Optional callable(log) per NAS generation.
+        val_data:           Optional held-out DataLoader yielding (images, labels).
+                            When given, NAS selection uses its embeddings (z-scored
+                            with the TRAINING statistics) and the reported accuracy
+                            is measured on it — recommended, as in compress().
 
     Returns:
         CompressResult where .model is the full backbone + compressed head.
-        FLOPs/params metrics cover the compressed head only.
+        FLOPs/params metrics cover the compressed head only. `.accuracy` is the
+        accuracy of that returned full model, in eval mode, on `val_data` when
+        given (otherwise on `train_data`, which inflates it).
 
     Example:
         >>> import torchvision.models as tv
@@ -753,23 +771,36 @@ def compress_with_backbone(
     if verbose:
         print(f"[compress_with_backbone] Extracting features: dim={feature_dim}, classes={n_classes}")
 
-    feat_model.eval()
-    all_X, all_y = [], []
-    loader = train_data if hasattr(train_data, "__iter__") else DataLoader(train_data, batch_size=batch_size)
-    with torch.no_grad():
-        for batch in loader:
-            xb, yb = batch[0].to(device), batch[1]
-            feats = feat_model(xb)
-            if feats.ndim > 2:
-                feats = feats.view(feats.size(0), -1)
-            all_X.append(feats.cpu())
-            all_y.append(yb.cpu() if isinstance(yb, torch.Tensor) else torch.tensor(yb))
+    def _as_loader(data):
+        return data if hasattr(data, "__iter__") else DataLoader(data, batch_size=batch_size)
 
-    X = torch.cat(all_X)
-    y = torch.cat(all_y)
-    X = (X - X.mean(0)) / X.std(0).clamp_min(1e-7)  # z-score norm
+    def _embed(data):
+        all_X, all_y = [], []
+        with torch.no_grad():
+            for batch in _as_loader(data):
+                xb, yb = batch[0].to(device), batch[1]
+                feats = feat_model(xb)
+                if feats.ndim > 2:
+                    feats = feats.view(feats.size(0), -1)
+                all_X.append(feats.cpu())
+                all_y.append(yb.cpu() if isinstance(yb, torch.Tensor) else torch.tensor(yb))
+        return torch.cat(all_X), torch.cat(all_y)
+
+    feat_model.eval()
+    X, y = _embed(train_data)
+    # z-score with the TRAINING statistics. They travel with the head (step 4):
+    # a head trained on z-scored features and fed raw ones predicts near chance.
+    emb_mean = X.mean(0)
+    emb_std = X.std(0).clamp_min(1e-7)
+    X = (X - emb_mean) / emb_std
 
     emb_loader = DataLoader(TensorDataset(X, y), batch_size=batch_size, shuffle=True)
+    emb_val_loader = None
+    if val_data is not None:
+        Xv, yv = _embed(val_data)
+        emb_val_loader = DataLoader(
+            TensorDataset((Xv - emb_mean) / emb_std, yv), batch_size=batch_size
+        )
 
     if verbose:
         print(f"  -> {len(X):,} embeddings extracted. Running NAS on MLP head...")
@@ -799,19 +830,23 @@ def compress_with_backbone(
         verbose=verbose,
         seed=seed,
         progress_callback=progress_callback,
+        val_data=emb_val_loader,
     )
 
     # -- 4. Splice compressed head back onto backbone ------------------------------
+    # The spliced head carries the z-score, and is called as a module: unpacking
+    # DynamicMLP.children() into an nn.Sequential lost its skip connections and
+    # called its ModuleList of projections, which has no forward (crash on every
+    # head that was an nn.Sequential, e.g. MobileNetV2/EfficientNet).
+    from dnaty._compress_helpers import StandardizedHead, _leading_dropouts, _loader_accuracy
+
     full_model = copy.deepcopy(backbone).to(device)
     for attr in ("fc", "classifier", "head", "heads"):
         if hasattr(full_model, attr):
-            original_head = getattr(full_model, attr)
-            if isinstance(original_head, nn.Sequential):
-                pre = [m for m in original_head.children() if not isinstance(m, nn.Linear)]
-                new_head = nn.Sequential(*pre, *result.model.children()) if pre else result.model
-            else:
-                new_head = result.model
-            setattr(full_model, attr, new_head)
+            new_head = StandardizedHead(
+                result.model, emb_mean, emb_std, _leading_dropouts(getattr(full_model, attr))
+            )
+            setattr(full_model, attr, new_head.to(device))
             break
 
     # -- 5. Optional end-to-end fine-tuning ----------------------------------------
@@ -839,8 +874,14 @@ def compress_with_backbone(
                 ep_total += len(yb)
             if verbose and ep_total > 0:
                 print(f"  Finetune epoch {ep+1}/{finetune_epochs} acc={ep_correct/ep_total:.4f}")
-        result.accuracy = ep_correct / max(ep_total, 1)
 
+    # Final accuracy: the model we return, as it will be used (eval mode), on
+    # held-out data when there is any. Before, this was the head's accuracy on the
+    # (training) embeddings, or the running train accuracy of the last fine-tune epoch.
+    full_model.eval()
+    result.accuracy = _loader_accuracy(
+        full_model, _as_loader(val_data if val_data is not None else train_data), device
+    )
     result.model = full_model
     return result
 

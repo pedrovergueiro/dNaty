@@ -183,11 +183,16 @@ dnaty.prune_conv_channels(backbone, amount=0.2)          # optional: thin convs 
 
 result = dnaty.compress_with_backbone(
     backbone, train_loader,
+    val_data=val_loader,                                   # held-out: selection + reported accuracy
     target_flops=0.4,
     finetune_backbone=True, finetune_epochs=10,
 )
 result.export_onnx("mobilenet_edge.onnx", input_shape=(3, 224, 224))
 ```
+
+The compressed head is trained on z-scored backbone features, and the z-score travels
+with it into `result.model` — the returned model reproduces `result.accuracy`, which is
+measured on that model in eval mode (on `val_data` when given).
 
 ### Deterministic results
 
@@ -349,7 +354,7 @@ dNaty/
 │   ├── utils/flops_counter.py   # count_flops, flops_by_layer
 │   └── experiments/fast_dataset.py  # zero-I/O MNIST/FashionMNIST/CIFAR10 loader
 ├── scripts/                     # prove_it.py, warm_start_demo.py, benchmark_market_real.py, ...
-└── tests/                       # pytest suite (204 tests) — gates every release
+└── tests/                       # pytest suite (218 tests) — gates every release
 ```
 
 ---
