@@ -80,7 +80,7 @@ print(result.benchmark_latency((784,)))   # p50/p95/p99 ms + fps
 
 **What you get with dNATY:**
 
-- **Smaller, cheaper models** — 8–83% fewer FLOPs across 18 real datasets, accuracy kept
+- **Smaller, cheaper models** — 8–83% fewer FLOPs across 17 real datasets, accuracy kept
 - **No GPU** — the search runs on CPU in minutes, so it works in CI and on the hardware you already have
 - **No manual architecture design** — point it at a model + dataset, get a deployable `nn.Module` back
 - **One function call** — `compress(model, dataset)`; export to `.pt` / `.onnx`
@@ -326,7 +326,7 @@ No comparison against OFA or MnasNet is claimed — those target full conv searc
 
 ```bash
 pip install dnaty                # stable (recommended)
-pip install dnaty==2.1.1         # pin to this release
+pip install dnaty==2.2.1         # pin to this release
 pip install git+https://github.com/pedrovergueiro/dNaty  # latest from source
 ```
 
@@ -373,7 +373,7 @@ Prefer not to run it locally? [dnaty.org](https://dnaty.org) hosts the same engi
   title   = {dNaty: Dynamic Neuro-Adaptive sYstem with evoluTionarY Learning},
   year    = {2026},
   url     = {https://github.com/pedrovergueiro/dNaty},
-  version = {2.1.1},
+  version = {2.2.1},
   license = {BSL-1.1}
 }
 ```

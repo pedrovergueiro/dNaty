@@ -1,6 +1,6 @@
 # dNATY: Technical Methodology
 
-**Version 2.1.1 · Pedro Vergueiro · 2026**
+**Version 2.2.1 · Pedro Vergueiro · 2026**
 
 This document describes the algorithmic design of dNATY for researchers evaluating the system. It answers the three questions a reviewer will ask: what the algorithm does, how it relates to prior work, and what the experiments actually claim.
 
@@ -83,6 +83,17 @@ s_k^(B, init) = w · ŝ_k                                 # w = warm_start_weigh
 Because operator selection is `softmax(s/τ)`, `w` acts as an inverse-temperature on the transferred prior: `w = 0` recovers a cold start; `w = 2` (default) biases early generations toward the top operators by a few ×; large `w` risks premature convergence. Since the per-generation update `s_k ← γ·s_k + impact_k` decays seeded scores whenever new improving experiences arrive, the prior is a **head start that provably fades** — after `t` improving updates the seeded component is scaled by `γ^t`, so task-B evidence dominates asymptotically. The transferred prior can only bias *operator scheduling*; it cannot fix the final architecture, so a poorly-matched prior costs at most a slow start, never a wrong answer.
 
 **Relation to meta-learning.** This is meta-learning at the level of the *search operator schedule*, not the weight initialisation (contrast MAML, §3.1). It requires no second-order gradients, no shared architecture, and no task distribution defined in advance — two related tasks suffice, and the transferable object is a K-vector (K = 11), not a network. The claim is scoped to related MLP/tabular tasks; `scripts/warm_start_demo.py` measures generations-to-target, cold vs warm-started, so the effect is reported rather than asserted.
+
+### 2.5 Lifelong Edge (v2.2.0)
+
+All four mechanisms are opt-in; with them off, search behaviour is unchanged.
+
+- **Plasticity preservation.** An exponential moving average of `|activation| × ‖outgoing weights‖` scores each hidden unit. The lowest-utility units receive fresh Kaiming incoming weights and **zeroed** outgoing weights (continual backpropagation, Dohare et al., 2024). The reinitialised model equals the previous one with those units ablated.
+- **On-device adaptation** (`result.adapt`). A reservoir replay buffer mixes past data 1:1 into the new batch. Accuracy is reported on both the new batch and the replayed old data, so forgetting is measured.
+- **Meta-learned controller** (`controller=True`). A LinUCB contextual bandit predicts each operator's expected improvement from the search state. It is blended with the memory softmax under a trust weight `n / (n + warmup)`, so a cold start matches classic dNATY.
+- **Prior merging** (`merge_priors`, research preview). Each prior is mean-centred and scaled to unit maximum magnitude before averaging.
+
+These are validated by unit and functional tests. No large-scale speed-up or forgetting benchmark is claimed for them.
 
 ---
 

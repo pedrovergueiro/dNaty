@@ -85,36 +85,48 @@ jobs:
       - name: Post PR comment
         if: github.event_name == 'pull_request' && steps.compress.outputs.result != ''
         uses: actions/github-script@v7
+        env:
+          RESULT: ${{ steps.compress.outputs.result }}
         with:
           script: |
-            const raw = `${{ steps.compress.outputs.result }}`;
+            const raw = process.env.RESULT;
+            const repo = 'https://github.com/pedrovergueiro/dNaty';
+            const fence = '```';
             let body;
 
             try {
               const r = JSON.parse(raw);
               if (r.skipped) {
-                body = `### dNATY Compress Check\n\n⚠️ No \`.dnaty/compress_check.py\` found — skipping compression check.\n\nSee [setup instructions](https://github.com/pedrovergueiroo/dNATY#compress-on-merge) to enable it.`;
+                body = [
+                  '### dNATY Compress Check',
+                  '',
+                  '⚠️ No `.dnaty/compress_check.py` found — skipping compression check.',
+                  '',
+                  `See [setup instructions](${repo}#compress-on-merge) to enable it.`,
+                ].join('\n');
               } else {
-                const flopsSign = r.flops_reduction_pct > 0 ? "↓" : "↑";
-                const paramsSign = r.params_reduction_pct > 0 ? "↓" : "↑";
-                const status = r.flops_reduction_pct > 5 ? "✅" : r.flops_reduction_pct > 0 ? "🟡" : "🔴";
-                body = `### dNATY Compress Check ${status}
-
-| Metric | Value |
-|--------|-------|
-| FLOPs | ${flopsSign} ${Math.abs(r.flops_reduction_pct).toFixed(1)}% (${(r.original_flops/1e6).toFixed(2)}M → ${(r.compressed_flops/1e6).toFixed(2)}M) |
-| Params | ${paramsSign} ${Math.abs(r.params_reduction_pct || 0).toFixed(1)}% |
-| Accuracy | ${r.accuracy} |
-| Architecture | \`${JSON.stringify(r.arch)}\` |
-
-\`\`\`
-${r.summary || ""}
-\`\`\`
-
-<sub>Powered by [dNATY](https://github.com/pedrovergueiroo/dNATY) — Evolutionary NAS for edge deployment</sub>`;
+                const flopsSign = r.flops_reduction_pct > 0 ? '↓' : '↑';
+                const paramsSign = r.params_reduction_pct > 0 ? '↓' : '↑';
+                const status = r.flops_reduction_pct > 5 ? '✅' : r.flops_reduction_pct > 0 ? '🟡' : '🔴';
+                body = [
+                  `### dNATY Compress Check ${status}`,
+                  '',
+                  '| Metric | Value |',
+                  '|--------|-------|',
+                  `| FLOPs | ${flopsSign} ${Math.abs(r.flops_reduction_pct).toFixed(1)}% (${(r.original_flops/1e6).toFixed(2)}M → ${(r.compressed_flops/1e6).toFixed(2)}M) |`,
+                  `| Params | ${paramsSign} ${Math.abs(r.params_reduction_pct || 0).toFixed(1)}% |`,
+                  `| Accuracy | ${r.accuracy} |`,
+                  `| Architecture | \`${JSON.stringify(r.arch)}\` |`,
+                  '',
+                  fence,
+                  r.summary || '',
+                  fence,
+                  '',
+                  `<sub>Powered by [dNATY](${repo}) — Evolutionary NAS for edge deployment</sub>`,
+                ].join('\n');
               }
             } catch (e) {
-              body = `### dNATY Compress Check\n\n⚠️ Could not parse compression output:\n\`\`\`\n${raw}\n\`\`\``;
+              body = ['### dNATY Compress Check', '', '⚠️ Could not parse compression output:', fence, raw, fence].join('\n');
             }
 
             await github.rest.issues.createComment({
